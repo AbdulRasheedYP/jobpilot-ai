@@ -22,33 +22,33 @@
 
 ## Phase 3 --- Job discovery
 
--   [ ] Select one permitted job source.
--   [ ] Build its source adapter.
--   [ ] Normalize job listings.
--   [ ] Add duplicate detection.
+-   [ ] Select primary permitted job source (e.g. Arbeitnow / Adzuna official API).
+-   [ ] Build modular source adapter (`JobSourceAdapter` interface).
+-   [ ] Normalize job listings into standard format.
+-   [ ] Add duplicate detection (canonical URL & unique source ID).
 -   [ ] Save jobs in PostgreSQL.
 
 ## Phase 4 --- Matching
 
--   [ ] Implement eligibility checks.
--   [ ] Implement the initial match score.
--   [ ] Show match reasons.
+-   [ ] Implement eligibility checks (role, experience, location, authorization).
+-   [ ] Implement the initial match score (weights as per `DECISION_ENGINE.md`).
+-   [ ] Show explainable match reasons in output.
 -   [ ] Test with real job descriptions.
 
 ## Phase 5 --- Application preparation
 
--   [ ] Generate a tailored CV.
--   [ ] Validate that it contains only verified facts.
--   [ ] Prepare application answers.
--   [ ] Flag missing mandatory information.
+-   [ ] Generate a tailored CV using confirmed facts only.
+-   [ ] Validate that it contains no unsupported claims or hallucinations.
+-   [ ] Prepare application answers from verified candidate profile.
+-   [ ] Flag missing mandatory information (`NEEDS_USER_INPUT`).
 
 ## Phase 6 --- Auto-apply
 
--   [ ] Implement the auto-apply policy checks.
--   [ ] Select one permitted application method.
--   [ ] Test safely before live submission.
--   [ ] Implement duplicate prevention.
--   [ ] Verify and record submission results.
+-   [ ] Implement deterministic auto-apply policy checks (`DECISION_ENGINE.md`).
+-   [ ] Build a Local Mock Application Portal (test career page) for safe Playwright testing.
+-   [ ] Implement Playwright application adapter using verified candidate data.
+-   [ ] Implement duplicate submission prevention and idempotency.
+-   [ ] Verify and record submission results with confirmation proof.
 
 ## Phase 7 --- Tracking and reliability
 

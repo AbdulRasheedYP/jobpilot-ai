@@ -1,63 +1,46 @@
-# JobPilot AI --- Requirements
+# JobPilot AI --- System & Environment Requirements
 
-**Version:** 1.0\
-**Status:** Draft\
-**Platform:** Ubuntu
+**Version:** 1.1  
+**Status:** Approved  
+**Platform:** Ubuntu Linux (22.04 LTS or newer recommended)  
+**Related Documents:** [MVP.md](file:///home/rasheed/Documents/jobpilot-ai/docs/MVP.md), [ARCHITECTURE.md](file:///home/rasheed/Documents/jobpilot-ai/docs/ARCHITECTURE.md)
 
 ## 1. Purpose
 
-List the software and tools required to build and run JobPilot AI.
+Specifies exact technical prerequisites, software versions, and local hardware requirements to build and run JobPilot AI. For functional features and user requirements, refer directly to [MVP.md](file:///home/rasheed/Documents/jobpilot-ai/docs/MVP.md).
 
-## 2. Technology requirements
+## 2. Technology & Version Matrix
 
-  Area                 Technology
-  -------------------- ------------------------------------------
-  Operating system     Ubuntu
-  Frontend             React + JavaScript
-  Frontend tooling     Vite
-  Styling              Tailwind CSS
-  Backend              Python + FastAPI
-  Agent workflow       LangGraph
-  Database             PostgreSQL
-  ORM and migrations   SQLAlchemy + Alembic
-  Background tasks     Celery + Redis
-  Local LLM            Ollama
-  Browser automation   Playwright, only for permitted workflows
-  Version control      Git + GitHub
+| Component | Technology | Minimum / Recommended Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **OS** | Ubuntu Linux | 22.04+ LTS | Host environment |
+| **Runtime (Backend)** | Python | 3.11+ | Backend services & LangGraph orchestration |
+| **API Framework** | FastAPI | 0.110+ | REST API & validation |
+| **Runtime (Frontend)**| Node.js | v20.x+ (LTS) | Frontend build & dev server |
+| **Frontend Framework**| React + Vite | React 18+, Vite 5+ | UI dashboard (JavaScript only) |
+| **Styling** | Tailwind CSS | 3.4+ | Utility-first CSS styling |
+| **Database** | PostgreSQL | 15+ / 16 | Relational data persistence |
+| **ORM & Migrations** | SQLAlchemy & Alembic | 2.0+ / 1.13+ | Schema management & migrations |
+| **Task Queue** | Celery + Redis | Celery 5.3+, Redis 7+ | Background workers & task queue |
+| **Local LLM Server** | Ollama | Latest stable | Local LLM inference (e.g., `llama3.2:3b`, `mistral:7b`) |
+| **Browser Automation**| Playwright | 1.40+ | Controlled form interaction for permitted workflows |
+| **Version Control** | Git | 2.34+ | Source code versioning |
 
-## 3. Main functional requirements
+## 3. Hardware & Resource Guidelines
 
-The system must: - Accept and analyze a candidate CV. - Store confirmed
-candidate details. - Search permitted job sources in India and
-internationally. - Check eligibility and calculate job relevance. -
-Prepare tailored CVs and application answers. - Submit applications only
-when automation is permitted. - Verify and track application results. -
-Allow the user to pause or stop agent runs.
+- **CPU:** 4+ cores (recommended for local LLM inference and Playwright execution).
+- **RAM:** Minimum 8 GB (16 GB recommended when running Ollama 7B models alongside PostgreSQL, Redis, and Playwright).
+- **Disk Space:** At least 15 GB free space (for Ollama model weights, PostgreSQL storage, and virtual environments).
 
-## 4. Non-functional requirements
+## 4. Ubuntu System Packages & Dependencies
 
--   Protect candidate data and CV files.
--   Prevent duplicate applications.
--   Log important agent actions and errors.
--   Recover safely from interruptions.
--   Validate LLM output before using it.
--   Keep the interface simple and responsive.
--   Run locally on Ubuntu for the first release.
+Prerequisite packages to install on Ubuntu:
+- `build-essential`, `python3-dev`, `python3-venv`
+- `postgresql`, `postgresql-contrib`, `libpq-dev`
+- `redis-server`
+- `curl`, `git`
+- Playwright system dependencies (`npx playwright install-deps` or `playwright install --with-deps`)
 
-## 5. Development prerequisites
+## 5. Architectural Alignment
 
-Install and configure: - Python and a virtual environment. - Node.js and
-npm. - PostgreSQL. - Redis. - Ollama and a suitable local model. - Git.
-
-Exact minimum versions and system resource requirements will be selected
-before implementation.
-
-------------------------------------------------------------------------
-
-## Review
-
--   [ ] Technology stack is acceptable.
--   [ ] Ubuntu is the initial target platform.
--   [ ] Functional requirements match the MVP.
-
-After approval, prepare `DEVELOPMENT_RULES.md`.
+Functional requirements, auto-apply guardrails, and acceptance criteria are maintained solely in [MVP.md](file:///home/rasheed/Documents/jobpilot-ai/docs/MVP.md). High-level system architecture and data flows are maintained in [ARCHITECTURE.md](file:///home/rasheed/Documents/jobpilot-ai/docs/ARCHITECTURE.md).

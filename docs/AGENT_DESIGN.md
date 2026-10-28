@@ -45,7 +45,8 @@ PostgreSQL
   Job Search Tool                     Gets jobs from permitted sources.
 
   Matching Service                    Checks job suitability and
-                                      calculates a score.
+                                      calculates a score (exact weights
+                                      defined in `DECISION_ENGINE.md`).
 
   Resume Generator                    Creates a job-specific CV using
                                       confirmed facts.
@@ -54,7 +55,8 @@ PostgreSQL
                                       candidate profile.
 
   Policy Check                        Decides whether automatic
-                                      submission is permitted.
+                                      submission is permitted (rules
+                                      defined in `DECISION_ENGINE.md`).
 
   Application Tool                    Submits the application through an
                                       approved method.
