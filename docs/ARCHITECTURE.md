@@ -1,117 +1,223 @@
-# JobPilot AI --- System Architecture
+# JobPilot AI --- System Architecture & Design
 
-**Version:** 1.0\
-**Status:** Draft\
-**Related documents:** `MVP.md`, `AGENT_WORKFLOW.md`, `AGENT_DESIGN.md`
+**Version:** 1.1  
+**Status:** Approved  
+**Related Documents:** [MVP.md](file:///home/rasheed/Documents/jobpilot-ai/docs/MVP.md), [AGENT_WORKFLOW.md](file:///home/rasheed/Documents/jobpilot-ai/docs/AGENT_WORKFLOW.md), [DECISION_ENGINE.md](file:///home/rasheed/Documents/jobpilot-ai/docs/DECISION_ENGINE.md), [DATABASE.md](file:///home/rasheed/Documents/jobpilot-ai/docs/DATABASE.md), [API_SPECIFICATION.md](file:///home/rasheed/Documents/jobpilot-ai/docs/API_SPECIFICATION.md)
 
-## 1. Architecture overview
+---
 
-JobPilot AI will use a simple modular architecture:
+## 1. Architecture Overview
 
-``` text
-React Frontend
-      ↓
-FastAPI Backend
-      ↓
-LangGraph Orchestrator
-      ↓
-Python Services and Tools
-  ├── CV Processing
-  ├── Job Source Integrations
-  ├── Matching
-  ├── Resume Generation
-  └── Application Execution
-      ↓
-PostgreSQL
+JobPilot AI is architected as a **modular monolith** with clean separation between the user interface, API services, deterministic business engines, and agent orchestration.
 
-Background Tasks: Celery + Redis
-LLM: Ollama initially
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       React Frontend (Vite + Tailwind)                  │
+│   [Dashboard]  [Profile / CV Review]  [Jobs & Matches]  [Agent Controls]│
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ HTTP / REST API (JSON)
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        FastAPI Backend Server                           │
+│  ┌───────────────────────┐  ┌────────────────────────────────────────┐  │
+│  │   API Routers         │  │    Pydantic Request/Response Schemas    │  │
+│  │  (/profile, /jobs,    │  └──────────────────┬─────────────────────┘  │
+│  │   /agent, /matches)   │                     │ Validates              │
+│  └───────────┬───────────┘  ┌──────────────────▼─────────────────────┐  │
+│              │ Calls        │   Deterministic Python Services        │  │
+│              ▼              │  - CV Fact Validator & Storage         │  │
+│  ┌───────────────────────┐  │  - Hard Eligibility Checker            │  │
+│  │ LangGraph Orchestrator│  │  - Match Scoring Engine (DECISION_ENG) │  │
+│  │ (State Machine, Steps)│  │  - Auto-Apply Policy Gate              │  │
+│  └───────────┬───────────┘  └──────────────────┬─────────────────────┘  │
+│              │ Invokes                         │                        │
+│              ▼                                 │                        │
+│  ┌───────────────────────┐  ┌──────────────────▼─────────────────────┐  │
+│  │ LLM Generation Layer  │  │ External Integration Adapters          │  │
+│  │ (Ollama: Llama/Mistral│  │  - JobSourceAdapter (Arbeitnow/Adzuna) │  │
+│  │  parsing & tailoring) │  │  - ApplicationAdapter (Playwright /    │  │
+│  └───────────────────────┘  │    Local Mock Career Portal)           │  │
+│                             └────────────────────────────────────────┘  │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ SQLAlchemy ORM
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                 Data Persistence & Background Infrastructure            │
+│  ┌────────────────────────────────────┐ ┌────────────────────────────┐  │
+│  │ PostgreSQL 16 (Relational Storage) │ │ Redis 7 + Celery Workers   │  │
+│  │ (Profiles, Resumes, Jobs, Matches, │ │ (Async Discovery & Queue)  │  │
+│  │  Applications, Agent Audit Events) │ │                            │  │
+│  └────────────────────────────────────┘ └────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 2. Technology stack
+---
 
-  -----------------------------------------------------------------------
-  Layer                   Technology              Purpose
-  ----------------------- ----------------------- -----------------------
-  Frontend                React + JavaScript      User interface
+## 2. Directory Structure
 
-  Styling                 Tailwind CSS            UI styling
+The project is structured into clean top-level directories:
 
-  Backend                 Python + FastAPI        API and business logic
+```text
+jobpilot-ai/
+├── README.md
+├── .gitignore
+├── .env.example
+├── docker-compose.yml              # Portable setup for PostgreSQL & Redis
+├── docs/                           # Architecture and design specs
+│   ├── MVP.md
+│   ├── ARCHITECTURE.md
+│   ├── TASKS.md
+│   ├── AGENT_WORKFLOW.md
+│   ├── AGENT_DESIGN.md
+│   ├── DECISION_ENGINE.md
+│   ├── DATABASE.md
+│   ├── API_SPECIFICATION.md
+│   ├── REQUIREMENTS.md
+│   ├── DEVELOPMENT_RULES.md
+│   └── SECURITY.md
+│
+├── backend/                        # FastAPI Backend & Agent Service
+│   ├── alembic/                    # Database migrations
+│   │   ├── versions/
+│   │   └── env.py
+│   ├── alembic.ini
+│   ├── requirements.txt            # Python dependencies
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                 # FastAPI application entrypoint
+│   │   │
+│   │   ├── core/                   # Core configurations
+│   │   │   ├── config.py           # Settings (Pydantic BaseSettings, env vars)
+│   │   │   ├── database.py         # SQLAlchemy engine & session factory
+│   │   │   └── logging.py          # Structured logging configuration
+│   │   │
+│   │   ├── models/                 # SQLAlchemy DB Models (PostgreSQL)
+│   │   │   ├── user_profile.py
+│   │   │   ├── resume.py
+│   │   │   ├── job_preference.py
+│   │   │   ├── job.py
+│   │   │   ├── job_match.py
+│   │   │   ├── application.py
+│   │   │   └── agent_event.py
+│   │   │
+│   │   ├── schemas/                # Pydantic Schemas (API validation)
+│   │   │   ├── profile.py
+│   │   │   ├── resume.py
+│   │   │   ├── preferences.py
+│   │   │   ├── job.py
+│   │   │   ├── match.py
+│   │   │   ├── application.py
+│   │   │   └── agent.py
+│   │   │
+│   │   ├── api/                    # API Endpoints (FastAPI Routers)
+│   │   │   ├── v1/
+│   │   │   │   ├── api.py          # Root v1 router
+│   │   │   │   ├── endpoints/
+│   │   │   │   │   ├── profile.py
+│   │   │   │   │   ├── resumes.py
+│   │   │   │   │   ├── preferences.py
+│   │   │   │   │   ├── jobs.py
+│   │   │   │   │   ├── matches.py
+│   │   │   │   │   ├── applications.py
+│   │   │   │   │   └── agent.py
+│   │   │
+│   │   ├── services/               # Deterministic Business Logic
+│   │   │   ├── cv_parser.py        # PDF/DOCX extraction & verification
+│   │   │   ├── deduplication.py    # Canonical URL & job hashing
+│   │   │   ├── eligibility.py      # Hard rules (role, experience, auth)
+│   │   │   ├── matching_engine.py  # Score weights as per DECISION_ENGINE.md
+│   │   │   ├── resume_tailor.py    # Job-specific CV drafting (no hallucinations)
+│   │   │   ├── answer_builder.py   # Application form responses from facts
+│   │   │   └── policy_gate.py      # Auto-apply safety checks
+│   │   │
+│   │   ├── adapters/               # External System Adapters
+│   │   │   ├── base.py             # Base adapter interfaces
+│   │   │   ├── sources/            # Job source integrations
+│   │   │   │   ├── arbeitnow.py    # Arbeitnow JSON API adapter
+│   │   │   │   └── adzuna.py       # Adzuna job feed adapter
+│   │   │   └── automation/         # Browser/submission integrations
+│   │   │       ├── playwright_executor.py
+│   │   │       └── mock_portal.py  # Local dummy career portal for safe tests
+│   │   │
+│   │   ├── agent/                  # LangGraph Workflow Orchestration
+│   │   │   ├── state.py            # AgentState definition (typed dict)
+│   │   │   ├── nodes.py            # Graph step execution nodes
+│   │   │   ├── tools.py            # Controlled tool functions
+│   │   │   └── graph.py            # LangGraph workflow definition & compile
+│   │   │
+│   │   └── workers/                # Background Tasks (Celery / Async)
+│   │       ├── celery_app.py
+│   │       └── tasks.py
+│   │
+│   └── tests/                      # Automated Test Suite (pytest)
+│       ├── conftest.py
+│       ├── test_eligibility.py
+│       ├── test_matching.py
+│       ├── test_deduplication.py
+│       └── test_policy_gate.py
+│
+└── frontend/                       # React (Vite + Tailwind CSS)
+    ├── package.json
+    ├── vite.config.js
+    ├── tailwind.config.js
+    ├── postcss.config.js
+    ├── index.html
+    └── src/
+        ├── main.jsx
+        ├── App.jsx
+        ├── api/                    # API client layer (Axios / Fetch)
+        │   ├── client.js
+        │   ├── profileApi.js
+        │   ├── jobsApi.js
+        │   ├── matchesApi.js
+        │   └── agentApi.js
+        ├── components/             # Reusable UI components
+        │   ├── layout/
+        │   │   ├── Navbar.jsx
+        │   │   └── Sidebar.jsx
+        │   ├── common/
+        │   │   ├── Button.jsx
+        │   │   ├── Card.jsx
+        │   │   ├── Modal.jsx
+        │   │   └── StatusBadge.jsx
+        │   └── agent/
+        │       ├── RunControls.jsx
+        │       └── LiveEventLog.jsx
+        └── pages/                  # Top-level route pages
+            ├── Dashboard.jsx
+            ├── Profile.jsx         # Candidate profile & CV upload/review
+            ├── Preferences.jsx     # Job search parameters & limits
+            ├── Jobs.jsx            # Discovered jobs listing
+            ├── Matches.jsx         # Scored matches & reason breakdown
+            └── Applications.jsx    # Application tracker & manual handoffs
+```
 
-  Agent                   LangGraph               Workflow orchestration
+---
 
-  Database                PostgreSQL              Store profiles, jobs
-                                                  and applications
+## 3. Technology Stack Breakdown
 
-  ORM                     SQLAlchemy              Database operations
+| Layer | Technology | Primary Role |
+| :--- | :--- | :--- |
+| **Frontend** | React (JavaScript) + Vite + Tailwind CSS | Fast, reactive, responsive single-user dashboard |
+| **Backend API** | FastAPI + Pydantic v2 | High-performance asynchronous REST API with strict validation |
+| **Agent Orchestration** | LangGraph | Deterministic state machine coordinating multi-step workflows |
+| **Database & ORM** | PostgreSQL 16 + SQLAlchemy 2.0 | Transactional persistence, relational data integrity, UUIDs |
+| **Migrations** | Alembic | Tracked, reproducible database schema versions |
+| **Background Tasks** | Celery + Redis | Asynchronous long-running jobs (discovery, batch processing) |
+| **Local LLM** | Ollama (`llama3.2:3b` / `mistral:7b`) | Privacy-preserving text parsing, analysis & resume tailoring |
+| **Automation** | Playwright | Controlled form filling on permitted platforms & mock portal |
 
-  Migrations              Alembic                 Database schema changes
+---
 
-  Background tasks        Celery + Redis          Scheduled and
-                                                  long-running work
+## 4. Deployment Modes
 
-  LLM                     Ollama initially        Local language model
+JobPilot AI supports two flexible local deployment modes:
 
-  Browser automation      Playwright              Only permitted
-                                                  application workflows
-  -----------------------------------------------------------------------
+### Mode A: Native Ubuntu Services (Recommended when native services are present)
+- Uses natively running PostgreSQL (`systemctl status postgresql`) and Redis (`systemctl status redis-server`).
+- FastAPI and Vite run in user space (Python virtual environment `.venv` + Node `npm run dev`).
+- Lowest resource overhead on local Ubuntu machines.
 
-## 3. Main modules
-
--   **Frontend:** profile, CV upload, preferences, jobs and application
-    dashboard.
--   **Backend API:** authentication, validation and frontend
-    communication.
--   **Agent module:** controls the job-search and application workflow.
--   **Integration module:** connects permitted job sources and
-    application methods.
--   **Service module:** CV processing, matching and resume generation.
--   **Worker module:** runs background tasks.
--   **Database module:** stores application data and agent state.
-
-## 4. Data flow
-
-1.  User uploads a CV through React.
-2.  FastAPI stores the file and starts CV analysis.
-3.  Confirmed candidate facts are saved in PostgreSQL.
-4.  The user starts a job-search run.
-5.  LangGraph coordinates the workflow.
-6.  Python services retrieve and evaluate jobs.
-7.  The application is prepared and checked by the policy engine.
-8.  A permitted adapter submits the application.
-9.  The result is verified and saved.
-10. React displays the updated status.
-
-## 5. Deployment approach
-
-For the first version, run the application locally on Ubuntu.
-
--   React frontend runs locally.
--   FastAPI provides the backend API.
--   PostgreSQL stores application data.
--   Redis and Celery handle background tasks.
--   Ollama runs the selected local LLM.
-
-Keep credentials and environment settings outside source control.
-
-## 6. Architecture principles
-
--   Start as a modular monolith; do not use microservices for this
-    personal MVP.
--   Keep LLM calls separate from critical business rules.
--   Use adapters for each job source.
--   Persist agent state and application history.
--   Validate all tool inputs and outputs.
--   Make submission safe against duplicate retries.
--   Add integrations only after the first end-to-end flow works.
-
-------------------------------------------------------------------------
-
-## Review
-
--   [ ] Architecture is understandable.
--   [ ] Technology choices are suitable.
--   [ ] Local Ubuntu deployment is acceptable.
-
-After approval, prepare `DATABASE.md`.
+### Mode B: Docker Compose (Portable / Containerized)
+- `docker-compose.yml` spins up PostgreSQL and Redis with persistent volumes and healthchecks.
+- Ensures identical environment replication across any machine with Docker installed.
