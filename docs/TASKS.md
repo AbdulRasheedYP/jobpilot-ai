@@ -7,6 +7,8 @@
 
 -   [ ] Create the project structure (`backend/`, `frontend/`).
 -   [x] Set up Git, `.gitignore`, and `docker-compose.yml`.
+-   [x] Set up GitHub Actions CI workflow (`.github/workflows/ci.yml`).
+-   [x] Set up automated database backup script (`scripts/backup_db.sh`).
 -   [ ] Create the React + JavaScript (Vite + Tailwind) frontend.
 -   [ ] Create the FastAPI backend with health check endpoint.
 -   [ ] Configure PostgreSQL and Alembic migrations.

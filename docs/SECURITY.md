@@ -40,10 +40,12 @@
 
 ## 5. Backup and recovery
 
--   Back up the PostgreSQL database.
--   Back up original and tailored CV files.
--   Protect backup files from unauthorized access.
--   Test that backups can be restored.
+-   **Automated Database Backups:** Use the automated backup utility [`scripts/backup_db.sh`](file:///home/rasheed/Documents/jobpilot-ai/scripts/backup_db.sh).
+-   **Execution Schedule:** Schedule via server cron (e.g. `0 2 * * * /path/to/backup_db.sh`).
+-   **Compression & Retention:** Backups are compressed with gzip (`.sql.gz`) and retained for 7 days by default, automatically purging older archives.
+-   **File Storage Backups:** Back up original and tailored CV files stored in `storage/uploads/` and `storage/resumes/`.
+-   **Access Control:** Restrict `storage/backups/` permissions to `chmod 700`.
+-   **Recovery Verification:** Periodically test restoration (`gunzip -c backup.sql.gz | psql ...`) on a staging database.
 
 ## 6. Security testing
 
