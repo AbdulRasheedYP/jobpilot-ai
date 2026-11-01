@@ -5,12 +5,14 @@
 
 ## Phase 1 --- Project setup
 
--   [ ] Create the project structure.
--   [ ] Set up Git and `.gitignore`.
--   [ ] Create the React + JavaScript frontend.
--   [ ] Create the FastAPI backend.
--   [ ] Configure PostgreSQL and Alembic.
--   [ ] Configure Redis and Celery.
+-   [ ] Create the project structure (`backend/`, `frontend/`).
+-   [x] Set up Git, `.gitignore`, and `docker-compose.yml`.
+-   [ ] Create the React + JavaScript (Vite + Tailwind) frontend.
+-   [ ] Create the FastAPI backend with health check endpoint.
+-   [ ] Configure PostgreSQL and Alembic migrations.
+-   [ ] Configure Redis and Celery for 24/7 background tasks.
+-   [ ] Implement JWT single-user authentication & login endpoint.
+-   [ ] Implement pluggable LLM provider layer (Groq API / OpenAI / Ollama).
 
 ## Phase 2 --- Candidate profile
 

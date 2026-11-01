@@ -3,8 +3,8 @@
 **Document:** MVP.md\
 **Version:** 1.0\
 **Status:** Draft for review\
-**Product type:** Personal-use, local-first autonomous job application
-agent
+**Product type:** Personal-use, self-hosted autonomous job application
+agent deployed on a Cloud VPS or server
 
 ------------------------------------------------------------------------
 
@@ -44,8 +44,8 @@ verification and an application history.
 
 ### 3.1 Target user
 
-One individual candidate using the application locally on their own
-Ubuntu computer.
+One individual candidate accessing their personal hosted instance via web
+browser (desktop or mobile) on their self-hosted Ubuntu Cloud VPS.
 
 ### 3.2 Geography
 

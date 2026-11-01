@@ -21,16 +21,20 @@ Specifies exact technical prerequisites, software versions, and local hardware r
 | **Styling** | Tailwind CSS | 3.4+ | Utility-first CSS styling |
 | **Database** | PostgreSQL | 15+ / 16 | Relational data persistence |
 | **ORM & Migrations** | SQLAlchemy & Alembic | 2.0+ / 1.13+ | Schema management & migrations |
-| **Task Queue** | Celery + Redis | Celery 5.3+, Redis 7+ | Background workers & task queue |
-| **Local LLM Server** | Ollama | Latest stable | Local LLM inference (e.g., `llama3.2:3b`, `mistral:7b`) |
+| **Task Queue** | Celery + Redis | Celery 5.3+, Redis 7+ | 24/7 background worker queue |
+| **LLM Provider** | Groq API / OpenAI / Ollama | Latest / Llama-3.3-70b (Groq) | High-speed LLM text analysis & tailoring |
 | **Browser Automation**| Playwright | 1.40+ | Controlled form interaction for permitted workflows |
+| **Authentication** | JWT + Passlib (Bcrypt) | Python-jose / Passlib | Single-user dashboard security |
 | **Version Control** | Git | 2.34+ | Source code versioning |
 
-## 3. Hardware & Resource Guidelines
+## 3. Hardware & Cloud VPS Guidelines
 
-- **CPU:** 4+ cores (recommended for local LLM inference and Playwright execution).
-- **RAM:** Minimum 8 GB (16 GB recommended when running Ollama 7B models alongside PostgreSQL, Redis, and Playwright).
-- **Disk Space:** At least 15 GB free space (for Ollama model weights, PostgreSQL storage, and virtual environments).
+- **Standard Cloud VPS (Recommended with Groq API):**
+  - **Specs:** 2 CPU cores, 2 GB - 4 GB RAM, 20 GB SSD.
+  - **Cost:** ~$4 - $6 / month on providers like Hetzner, DigitalOcean, or Linode.
+  - **Efficiency:** Offloads heavy neural inference to Groq API (extremely fast and has a free tier), keeping VPS resource usage very light.
+- **High-Memory VPS (If running self-hosted Ollama on the server):**
+  - **Specs:** 4+ CPU cores, 16 GB RAM (or GPU instance).
 
 ## 4. Ubuntu System Packages & Dependencies
 

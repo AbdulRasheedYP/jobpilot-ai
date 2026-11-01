@@ -198,26 +198,51 @@ jobpilot-ai/
 
 | Layer | Technology | Primary Role |
 | :--- | :--- | :--- |
-| **Frontend** | React (JavaScript) + Vite + Tailwind CSS | Fast, reactive, responsive single-user dashboard |
-| **Backend API** | FastAPI + Pydantic v2 | High-performance asynchronous REST API with strict validation |
+| **Frontend** | React (JavaScript) + Vite + Tailwind CSS | Responsive web dashboard accessible from desktop or mobile |
+| **Backend API** | FastAPI + Pydantic v2 | Asynchronous REST API with strict request/response validation |
+| **Security / Auth** | JWT (HS256) + Passlib (Bcrypt) | Single-user authentication protecting the hosted dashboard |
 | **Agent Orchestration** | LangGraph | Deterministic state machine coordinating multi-step workflows |
 | **Database & ORM** | PostgreSQL 16 + SQLAlchemy 2.0 | Transactional persistence, relational data integrity, UUIDs |
 | **Migrations** | Alembic | Tracked, reproducible database schema versions |
-| **Background Tasks** | Celery + Redis | Asynchronous long-running jobs (discovery, batch processing) |
-| **Local LLM** | Ollama (`llama3.2:3b` / `mistral:7b`) | Privacy-preserving text parsing, analysis & resume tailoring |
-| **Automation** | Playwright | Controlled form filling on permitted platforms & mock portal |
+| **Background Tasks** | Celery + Redis | 24/7 background job discovery, matching, and scheduled runs |
+| **LLM Provider Layer** | Groq API / OpenAI / Ollama | Pluggable LLM interface (Groq recommended for cloud VPS without GPU) |
+| **Automation** | Playwright (Headless) | Controlled form filling on permitted platforms & mock career portal |
 
 ---
 
-## 4. Deployment Modes
+## 4. Cloud VPS & Production Deployment Architecture
 
-JobPilot AI supports two flexible local deployment modes:
+JobPilot AI is architected for **24/7 Cloud Hosting** on any Ubuntu VPS (DigitalOcean, Hetzner, AWS, Linode) or dedicated server:
 
-### Mode A: Native Ubuntu Services (Recommended when native services are present)
-- Uses natively running PostgreSQL (`systemctl status postgresql`) and Redis (`systemctl status redis-server`).
-- FastAPI and Vite run in user space (Python virtual environment `.venv` + Node `npm run dev`).
-- Lowest resource overhead on local Ubuntu machines.
+```text
+       Internet / User Browser (Mobile or Desktop)
+                         │ HTTPS / Domain
+                         ▼
+             ┌───────────────────────┐
+             │   Nginx Reverse Proxy │ (SSL Termination via Let's Encrypt)
+             └───────────┬───────────┘
+                         │
+        ┌────────────────┴────────────────┐
+        ▼                                 ▼
+┌───────────────┐                 ┌───────────────┐
+│ React Web App │ (Port 3000/80)  │ FastAPI API   │ (Port 8000)
+│ (Static/Vite) │                 │ + JWT Auth    │
+└───────────────┘                 └───────┬───────┘
+                                          │
+        ┌─────────────────────────────────┼──────────────────────────────┐
+        ▼                                 ▼                              ▼
+┌───────────────┐                 ┌───────────────┐              ┌───────────────┐
+│ PostgreSQL 16 │                 │ Redis 7 Queue │              │ Cloud LLM API │
+│ (Persistent)  │                 │ + Celery 24/7 │              │ (Groq/OpenAI) │
+└───────────────┘                 └───────────────┘              └───────────────┘
+```
 
-### Mode B: Docker Compose (Portable / Containerized)
-- `docker-compose.yml` spins up PostgreSQL and Redis with persistent volumes and healthchecks.
-- Ensures identical environment replication across any machine with Docker installed.
+### 4.1 Deployment Specifications:
+1. **Containerized via Docker Compose:**
+   - Single command deployment: `docker compose up -d`.
+   - Manages frontend, backend API, celery worker, PostgreSQL, and Redis containers.
+2. **Cloud Resource Efficiency:**
+   - Designed to run smoothly on an affordable **2 GB / 4 GB RAM Cloud VPS** by delegating heavy LLM inference to **Groq API** (or OpenAI/Claude) instead of requiring expensive GPU cloud servers.
+   - For users with high-memory or GPU VPS, self-hosted **Ollama** remains fully supported.
+3. **24/7 Background Autonomy:**
+   - Celery beat schedule and workers keep discovering jobs, scoring suitability, and tracking statuses continuously even when the user's laptop is powered off.

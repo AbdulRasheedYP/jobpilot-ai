@@ -60,6 +60,7 @@ CREATE TABLE user_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
     phone VARCHAR(50),
     current_location VARCHAR(255),
     preferred_locations JSONB DEFAULT '[]'::jsonb,
