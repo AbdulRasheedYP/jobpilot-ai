@@ -10,7 +10,7 @@
 -   [x] Set up GitHub Actions CI workflow (`.github/workflows/ci.yml`).
 -   [x] Set up automated database backup script (`scripts/backup_db.sh`).
 -   [x] Create the React + JavaScript (Vite + Tailwind) frontend.
--   [ ] Create the FastAPI backend with health check endpoint.
+-   [x] Create the FastAPI backend with health check endpoint.
 -   [ ] Configure PostgreSQL and Alembic migrations.
 -   [ ] Configure Redis and Celery for 24/7 background tasks.
 -   [ ] Implement JWT single-user authentication & login endpoint.
