@@ -51,13 +51,17 @@
 
 ## 6. Git and testing
 
--   Make small, meaningful Git commits.
--   Use clear commit messages.
--   Keep `.env`, credentials and private files out of Git.
--   Test CV parsing, matching, duplicate prevention, policy checks and
-    application status changes.
--   Do not test live submissions unless the method is permitted and the
-    test is authorized.
+-   **Branching Strategy:**
+    -   `main`: Protected production branch. Deploys to Cloud VPS only when stable and tested.
+    -   `develop`: Integration branch where completed phase features are merged.
+    -   `feature/phase-<number>-<name>`: Active working branch for each specific phase in `docs/TASKS.md` (e.g. `feature/phase-1-setup`).
+-   **Commit Guidelines:**
+    -   Make small, meaningful Git commits with conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `ci:`).
+    -   Never commit `.env`, credentials, secrets, or private candidate CV files.
+-   **Testing Requirements:**
+    -   All unit tests (`pytest`) and frontend builds (`npm run build`) must pass locally and in GitHub Actions CI before merging into `develop` or `main`.
+    -   Test CV parsing, matching formulas, duplicate prevention, policy checks, and status changes.
+    -   Do not test live submissions unless the method is permitted and the test is authorized (use the local mock career portal).
 
 ------------------------------------------------------------------------
 
