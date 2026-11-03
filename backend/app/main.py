@@ -20,6 +20,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register API v1 Routers
+from backend.app.api.v1.api import api_router
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
 
 @app.get(f"{settings.API_V1_PREFIX}/health", status_code=status.HTTP_200_OK, tags=["System"])
 async def health_check():
