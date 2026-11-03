@@ -12,7 +12,7 @@
 -   [x] Create the React + JavaScript (Vite + Tailwind) frontend.
 -   [x] Create the FastAPI backend with health check endpoint.
 -   [x] Configure PostgreSQL and Alembic migrations.
--   [ ] Configure Redis and Celery for 24/7 background tasks.
+-   [x] Configure Redis and Celery for 24/7 background tasks.
 -   [ ] Implement JWT single-user authentication & login endpoint.
 -   [ ] Implement pluggable LLM provider layer (Groq API / OpenAI / Ollama).
 
