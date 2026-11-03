@@ -26,7 +26,9 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
 
     # LLM Settings
-    LLM_PROVIDER: str = "groq"  # 'groq' | 'openai' | 'ollama'
+    LLM_PROVIDER: str = "gemini"  # 'gemini' | 'groq' | 'openai' | 'ollama'
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     OPENAI_API_KEY: str = ""

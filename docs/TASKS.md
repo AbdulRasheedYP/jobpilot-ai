@@ -14,7 +14,7 @@
 -   [x] Configure PostgreSQL and Alembic migrations.
 -   [x] Configure Redis and Celery for 24/7 background tasks.
 -   [x] Implement JWT single-user authentication & login endpoint.
--   [ ] Implement pluggable LLM provider layer (Groq API / OpenAI / Ollama).
+-   [x] Implement pluggable LLM provider layer (Gemini / Groq / OpenAI / Ollama).
 
 ## Phase 2 --- Candidate profile
 
