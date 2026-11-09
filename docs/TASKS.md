@@ -18,11 +18,11 @@
 
 ## Phase 2 --- Candidate profile
 
--   [ ] Build profile management.
--   [ ] Add CV upload.
--   [ ] Extract CV information.
--   [ ] Let the user review and confirm extracted facts.
--   [ ] Save job preferences.
+-   [x] Build profile management.
+-   [x] Add CV upload.
+-   [x] Extract CV information.
+-   [x] Let the user review and confirm extracted facts.
+-   [x] Save job preferences.
 
 ## Phase 3 --- Job discovery
 
