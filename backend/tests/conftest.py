@@ -50,3 +50,37 @@ def override_get_db(db_session):
     app.dependency_overrides[get_db] = _override_get_db
     yield
     app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture
+async def async_client():
+    from httpx import ASGITransport, AsyncClient
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.fixture
+def test_user(db_session):
+    import uuid
+    from backend.app.models.user_profile import UserProfile
+    from backend.app.core.security import get_password_hash
+
+    user = UserProfile(
+        id=uuid.uuid4(),
+        full_name="Jane Doe",
+        email="candidate@example.com",
+        hashed_password=get_password_hash("ValidPass123!"),
+        skills=["Python", "FastAPI"],
+        education=[{"institution": "XYZ University", "degree": "B.Tech CS", "graduation_year": 2024}],
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def auth_headers(test_user):
+    from backend.app.core.security import create_access_token
+    token = create_access_token(subject=str(test_user.id))
+    return {"Authorization": f"Bearer {token}"}
