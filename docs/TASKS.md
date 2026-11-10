@@ -26,11 +26,11 @@
 
 ## Phase 3 --- Job discovery
 
--   [ ] Select primary permitted job source (e.g. Arbeitnow / Adzuna official API).
--   [ ] Build modular source adapter (`JobSourceAdapter` interface).
--   [ ] Normalize job listings into standard format.
--   [ ] Add duplicate detection (canonical URL & unique source ID).
--   [ ] Save jobs in PostgreSQL.
+-   [x] Select primary permitted job source (e.g. Arbeitnow / Adzuna official API).
+-   [x] Build modular source adapter (`JobSourceAdapter` interface).
+-   [x] Normalize job listings into standard format.
+-   [x] Add duplicate detection (canonical URL & unique source ID).
+-   [x] Save jobs in PostgreSQL.
 
 ## Phase 4 --- Matching
 
