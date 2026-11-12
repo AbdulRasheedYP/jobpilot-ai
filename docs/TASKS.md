@@ -34,10 +34,10 @@
 
 ## Phase 4 --- Matching
 
--   [ ] Implement eligibility checks (role, experience, location, authorization).
--   [ ] Implement the initial match score (weights as per `DECISION_ENGINE.md`).
--   [ ] Show explainable match reasons in output.
--   [ ] Test with real job descriptions.
+-   [x] Implement eligibility checks (role, experience, location, authorization).
+-   [x] Implement the initial match score (weights as per `DECISION_ENGINE.md`).
+-   [x] Show explainable match reasons in output.
+-   [x] Test with real job descriptions.
 
 ## Phase 5 --- Application preparation
 
