@@ -41,10 +41,10 @@
 
 ## Phase 5 --- Application preparation
 
--   [ ] Generate a tailored CV using confirmed facts only.
--   [ ] Validate that it contains no unsupported claims or hallucinations.
--   [ ] Prepare application answers from verified candidate profile.
--   [ ] Flag missing mandatory information (`NEEDS_USER_INPUT`).
+-   [x] Generate a tailored CV using confirmed facts only.
+-   [x] Validate that it contains no unsupported claims or hallucinations.
+-   [x] Prepare application answers from verified candidate profile.
+-   [x] Flag missing mandatory information (`NEEDS_USER_INPUT`).
 
 ## Phase 6 --- Auto-apply
 
