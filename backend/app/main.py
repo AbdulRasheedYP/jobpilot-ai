@@ -22,7 +22,10 @@ app.add_middleware(
 
 # Register API v1 Routers
 from backend.app.api.v1.api import api_router
+from backend.app.api.v1.endpoints.mock_portal import router as mock_portal_router
+
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+app.include_router(mock_portal_router)
 
 
 @app.get(f"{settings.API_V1_PREFIX}/health", status_code=status.HTTP_200_OK, tags=["System"])
