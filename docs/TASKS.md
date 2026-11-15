@@ -48,11 +48,11 @@
 
 ## Phase 6 --- Auto-apply
 
--   [ ] Implement deterministic auto-apply policy checks (`DECISION_ENGINE.md`).
--   [ ] Build a Local Mock Application Portal (test career page) for safe Playwright testing.
--   [ ] Implement Playwright application adapter using verified candidate data.
--   [ ] Implement duplicate submission prevention and idempotency.
--   [ ] Verify and record submission results with confirmation proof.
+-   [x] Implement deterministic auto-apply policy checks (`DECISION_ENGINE.md`).
+-   [x] Build a Local Mock Application Portal (test career page) for safe Playwright testing.
+-   [x] Implement Playwright application adapter using verified candidate data.
+-   [x] Implement duplicate submission prevention and idempotency.
+-   [x] Verify and record submission results with confirmation proof.
 
 ## Phase 7 --- Tracking and reliability
 

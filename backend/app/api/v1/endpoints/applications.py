@@ -135,3 +135,35 @@ def retry_application(
         application_id=application_id,
         user_id=current_user.id,
     )
+
+
+@router.post("/{application_id}/submit", response_model=ApplicationResponse)
+async def submit_application(
+    application_id: uuid.UUID,
+    is_manual: bool = Query(False, description="Whether to bypass automated policy gates for explicit user-triggered action"),
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Submit a single application to the employer portal."""
+    from backend.app.services import auto_apply_service
+    return await auto_apply_service.execute_application_submission(
+        db=db,
+        application_id=application_id,
+        user=current_user,
+        is_manual_submission=is_manual,
+    )
+
+
+@router.post("/auto-apply/run")
+async def run_batch_auto_apply_endpoint(
+    limit: int = Query(5, ge=1, le=25, description="Max applications to submit in this run"),
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Trigger automated batch submission run for all READY applications."""
+    from backend.app.services import auto_apply_service
+    return await auto_apply_service.run_batch_auto_apply(
+        db=db,
+        user=current_user,
+        limit=limit,
+    )
