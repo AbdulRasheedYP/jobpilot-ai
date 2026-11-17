@@ -48,6 +48,7 @@ class ApplicationResponse(BaseModel):
     notes: Optional[str] = None
     answers: List[AnswerItemSchema] = Field(default_factory=list)
     job: Optional[JobSummary] = None
+    tailored_resume_text: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

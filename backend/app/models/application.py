@@ -44,6 +44,18 @@ class Application(Base, TimestampMixin):
     tailored_resume = relationship("Resume", back_populates="applications")
     answers = relationship("ApplicationAnswer", back_populates="application", cascade="all, delete-orphan")
 
+    @property
+    def tailored_resume_text(self) -> Optional[str]:
+        if self.tailored_resume and self.tailored_resume.file_path:
+            import os
+            try:
+                if os.path.exists(self.tailored_resume.file_path):
+                    with open(self.tailored_resume.file_path, "r", encoding="utf-8") as f:
+                        return f.read()
+            except Exception:
+                pass
+        return None
+
 
 class ApplicationAnswer(Base):
     __tablename__ = "application_answers"
