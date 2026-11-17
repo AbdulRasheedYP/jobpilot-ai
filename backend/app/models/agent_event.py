@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, ForeignKey, DateTime, Enum as SAEnum, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -28,7 +28,7 @@ class AgentRun(Base):
     applications_submitted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -54,7 +54,7 @@ class AgentEvent(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
