@@ -6,9 +6,75 @@ from backend.app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from backend.app.core.database import Base, engine
+    import uuid
+    from backend.app.core.database import Base, engine, SessionLocal
     import backend.app.models  # noqa: F401 - register models
     Base.metadata.create_all(bind=engine)
+
+    # Auto-seed initial user and sources if empty (Single-User Personal Agent)
+    db = SessionLocal()
+    try:
+        from backend.app.models.user_profile import UserProfile
+        from backend.app.models.job_preference import JobPreference
+        from backend.app.models.job import JobSource
+        from backend.app.core.security import get_password_hash
+
+        user = db.query(UserProfile).first()
+        if not user:
+            user = UserProfile(
+                id=uuid.uuid4(),
+                email="candidate@jobpilot.ai",
+                hashed_password=get_password_hash("password123"),
+                full_name="Candidate User",
+                current_title="Software Engineer",
+                skills=["Python", "FastAPI", "React", "PostgreSQL", "Docker", "Git"],
+                experience_years=2.0,
+                education="B.Tech Computer Science",
+                location="Bangalore, India",
+                sponsorship_required=False,
+                notice_period_days=0,
+            )
+            db.add(user)
+            db.flush()
+
+            pref = JobPreference(
+                id=uuid.uuid4(),
+                user_profile_id=user.id,
+                target_roles=["Software Engineer", "Python Developer", "Full Stack Developer", "Backend Developer"],
+                min_salary=500000,
+                preferred_currency="INR",
+                locations=["Bangalore", "Kochi", "Remote"],
+                remote_only=False,
+                excluded_companies=[],
+                min_match_score=60.0,
+                auto_apply_enabled=True,
+                daily_application_limit=10,
+            )
+            db.add(pref)
+
+        if not db.query(JobSource).filter(JobSource.code == "arbeitnow").first():
+            db.add(JobSource(
+                id=uuid.uuid4(),
+                name="Arbeitnow Jobs",
+                code="arbeitnow",
+                adapter_class="ArbeitnowAdapter",
+                is_enabled=True,
+                permits_auto_apply=False,
+            ))
+        if not db.query(JobSource).filter(JobSource.code == "mock_portal").first():
+            db.add(JobSource(
+                id=uuid.uuid4(),
+                name="Mock Career Portal",
+                code="mock_portal",
+                adapter_class="MockPortalAdapter",
+                is_enabled=True,
+                permits_auto_apply=True,
+            ))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
     yield
 
 
