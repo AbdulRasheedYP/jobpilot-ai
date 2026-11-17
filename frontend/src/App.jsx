@@ -124,16 +124,18 @@ export default function App() {
       if (currentToken) {
         fetchCurrentUser();
         fetchDashboard();
+        fetchRunsAndLogs();
       }
     };
     init();
   }, [token]);
 
-  // Periodic polling for Dashboard events
+  // Periodic polling for Dashboard & Runs
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
       fetchDashboard(true);
+      fetchRunsAndLogs();
     }, 8000);
     return () => clearInterval(interval);
   }, [token]);
@@ -145,6 +147,7 @@ export default function App() {
       fetchDashboard();
       fetchJobs();
       fetchMatches();
+      fetchRunsAndLogs();
     } else if (activeTab === 'jobs') {
       fetchJobs();
       fetchMatches();
@@ -156,6 +159,7 @@ export default function App() {
       fetchResumes();
     } else if (activeTab === 'agent') {
       fetchDashboard();
+      fetchRunsAndLogs();
     }
   }, [activeTab, token]);
 
@@ -177,15 +181,17 @@ export default function App() {
       const res = await authFetch('/agent/dashboard');
       if (res && res.ok) {
         const data = await res.json();
-        if (data.kpis) setKpis(data.kpis);
-        if (data.active_run) {
-          setActiveRun(data.active_run);
-          setIsRunning(data.active_run.status === 'RUNNING');
-        } else {
-          setActiveRun(null);
-          setIsRunning(false);
-        }
-        if (data.recent_events) setAgentLogs(data.recent_events);
+        setKpis({
+          total_jobs: data.total_jobs ?? 0,
+          total_matches: data.total_matches ?? 0,
+          strong_matches: data.strong_matches ?? 0,
+          total_applications: data.total_applications ?? 0,
+          applied_confirmed: data.applied_confirmed ?? 0,
+          needs_action: data.needs_action ?? 0,
+          auto_apply_enabled: data.auto_apply_enabled ?? true,
+          daily_application_limit: data.daily_application_limit ?? 10,
+          daily_applications_used: data.daily_applications_used ?? 0,
+        });
       }
     } catch (e) {
       console.error(e);
@@ -194,12 +200,32 @@ export default function App() {
     }
   };
 
-  const fetchJobs = async () => {
+  const fetchRunsAndLogs = async () => {
     try {
-      const res = await authFetch('/jobs?limit=50');
+      const res = await authFetch('/agent/runs?page=1&size=10');
       if (res && res.ok) {
         const data = await res.json();
-        setJobs(data.items || []);
+        const runsList = data.items || [];
+        if (runsList.length > 0) {
+          const latestRun = runsList[0];
+          setActiveRun(latestRun);
+          setIsRunning(latestRun.status === 'RUNNING');
+          if (latestRun.events && latestRun.events.length > 0) {
+            setAgentLogs(latestRun.events);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const res = await authFetch('/jobs?page=1&size=50');
+      if (res && res.ok) {
+        const data = await res.json();
+        setJobs(data.items || (Array.isArray(data) ? data : []));
       }
     } catch (e) {
       console.error(e);
@@ -208,10 +234,10 @@ export default function App() {
 
   const fetchMatches = async () => {
     try {
-      const res = await authFetch('/matches?limit=50');
+      const res = await authFetch('/matches?page=1&size=50');
       if (res && res.ok) {
         const data = await res.json();
-        setMatches(data || []);
+        setMatches(data.items || (Array.isArray(data) ? data : []));
       }
     } catch (e) {
       console.error(e);
@@ -220,10 +246,10 @@ export default function App() {
 
   const fetchApplications = async () => {
     try {
-      const res = await authFetch('/applications');
+      const res = await authFetch('/applications?page=1&size=50');
       if (res && res.ok) {
         const data = await res.json();
-        setApplications(data || []);
+        setApplications(data.items || (Array.isArray(data) ? data : []));
       }
     } catch (e) {
       console.error(e);
@@ -259,9 +285,10 @@ export default function App() {
       const res = await authFetch('/resumes');
       if (res && res.ok) {
         const data = await res.json();
-        setResumes(data);
-        if (data.length > 0 && !selectedResume) {
-          setSelectedResume(data[0]);
+        const list = Array.isArray(data) ? data : data.items || [];
+        setResumes(list);
+        if (list.length > 0 && !selectedResume) {
+          setSelectedResume(list[0]);
         }
       }
     } catch (e) {
@@ -288,7 +315,7 @@ export default function App() {
 
       if (res && res.ok) {
         const newResume = await res.json();
-        showToast('CV parsed successfully! Please confirm verified facts.', 'success');
+        showToast('CV parsed successfully! Review and confirm verified facts.', 'success');
         fetchResumes();
         fetchProfile();
         setSelectedResume(newResume);
@@ -305,11 +332,15 @@ export default function App() {
 
   const handleConfirmResume = async (resumeId) => {
     try {
+      const parsed = selectedResume?.parsed_facts || {};
+      const skillsToConfirm = parsed.extracted_skills || parsed.skills || profile?.skills || [];
+      const educationToConfirm = parsed.extracted_education || parsed.education || [];
+      const experienceToConfirm = parsed.extracted_experience || parsed.experience || [];
+
       const payload = {
-        skills: selectedResume.extracted_facts.skills || [],
-        experience_years: selectedResume.extracted_facts.experience_years || 1.0,
-        education: selectedResume.extracted_facts.education || '',
-        verified_notes: 'Confirmed by candidate via dashboard.'
+        confirmed_skills: skillsToConfirm,
+        confirmed_education: educationToConfirm,
+        confirmed_experience: experienceToConfirm,
       };
 
       const res = await authFetch(`/resumes/${resumeId}/confirm`, {
@@ -333,11 +364,11 @@ export default function App() {
     try {
       const res = await authFetch('/jobs/sync', {
         method: 'POST',
-        body: JSON.stringify({ source_code: 'arbeitnow' }),
+        body: JSON.stringify({ source_code: 'arbeitnow', query: 'Python' }),
       });
       if (res && res.ok) {
         const data = await res.json();
-        showToast(`Discovered ${data.total_discovered} jobs (${data.new_jobs_added} new).`, 'success');
+        showToast(`Discovered ${data.total_fetched} jobs (${data.new_jobs} new).`, 'success');
         fetchJobs();
         fetchDashboard();
       }
@@ -352,10 +383,13 @@ export default function App() {
     setLoading(true);
     showToast('Evaluating match scores via Decision Engine...', 'info');
     try {
-      const res = await authFetch('/matches/evaluate', { method: 'POST' });
+      const res = await authFetch('/matches/evaluate', {
+        method: 'POST',
+        body: JSON.stringify({ limit: 50 }),
+      });
       if (res && res.ok) {
         const data = await res.json();
-        showToast(`Evaluated ${data.total_evaluated} jobs. Strong matches: ${data.passed_matches}`, 'success');
+        showToast(`Evaluated ${data.evaluated_count} jobs. Strong matches: ${data.strong_matches_count}`, 'success');
         fetchMatches();
         fetchDashboard();
       }
@@ -390,15 +424,17 @@ export default function App() {
   const handleSubmitApplication = async (appId) => {
     showToast('Submitting application via verified portal adapter...', 'info');
     try {
-      const res = await authFetch(`/applications/${appId}/submit`, {
+      const res = await authFetch(`/applications/${appId}/submit?is_manual=true`, {
         method: 'POST',
       });
       if (res && res.ok) {
         const data = await res.json();
         if (data.status === 'APPLIED_CONFIRMED') {
-          showToast(`Applied Confirmed! Receipt: ${data.receipt_code}`, 'success');
+          showToast(`Applied Confirmed! Receipt: ${data.confirmation_evidence?.receipt_code || 'Verified'}`, 'success');
         } else if (data.status === 'MANUAL_ACTION_REQUIRED') {
           showToast('CAPTCHA / bot barrier detected: Manual action required.', 'warning');
+        } else {
+          showToast(`Application updated: ${data.status}`, 'info');
         }
         fetchApplications();
         fetchDashboard();
@@ -418,6 +454,7 @@ export default function App() {
       if (res && res.ok) {
         showToast('Autonomous cycle started!', 'success');
         fetchDashboard();
+        fetchRunsAndLogs();
       }
     } catch (e) {
       showToast('Error triggering agent: ' + e.message, 'error');
@@ -425,15 +462,35 @@ export default function App() {
   };
 
   const handleAgentControl = async (action) => {
+    if (!activeRun?.id) {
+      showToast('No active agent run to control.', 'warning');
+      return;
+    }
     try {
-      const res = await authFetch(`/agent/${action}`, { method: 'POST' });
+      const res = await authFetch(`/agent/runs/${activeRun.id}/${action}`, { method: 'POST' });
       if (res && res.ok) {
         showToast(`Agent ${action} command sent.`, 'success');
         fetchDashboard();
+        fetchRunsAndLogs();
       }
     } catch (e) {
       showToast('Control error: ' + e.message, 'error');
     }
+  };
+
+  // Helper for resume parsed facts
+  const getResumeSkills = (res) => {
+    if (!res?.parsed_facts) return [];
+    return (
+      res.parsed_facts.confirmed_skills ||
+      res.parsed_facts.extracted_skills ||
+      res.parsed_facts.skills ||
+      []
+    );
+  };
+
+  const isResumeConfirmed = (res) => {
+    return res?.parsed_facts?.status === 'confirmed';
   };
 
   return (
@@ -786,48 +843,56 @@ export default function App() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {applications.length > 0 ? (
-                    applications.map((app) => (
-                      <tr key={app.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-4 px-4 font-bold text-slate-900">
-                          <div>{app.job_title}</div>
-                          <div className="text-[11px] text-slate-500 font-normal">{app.company_name}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                              app.status === 'APPLIED_CONFIRMED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : app.status === 'PREPARED'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {app.status.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 font-mono text-[11px] text-slate-700">
-                          {app.receipt_code || '—'}
-                        </td>
-                        <td className="py-4 px-4 text-slate-600">
-                          {app.submitted_at
-                            ? new Date(app.submitted_at).toLocaleDateString()
-                            : new Date(app.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="py-4 px-4">
-                          {app.status === 'PREPARED' ? (
-                            <button
-                              onClick={() => handleSubmitApplication(app.id)}
-                              className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                    applications.map((app) => {
+                      const jobTitle = app.job?.title || 'Software Developer';
+                      const company = app.job?.company_name || 'Employer';
+                      const receiptCode = app.confirmation_evidence?.receipt_code || '—';
+
+                      return (
+                        <tr key={app.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-4 px-4 font-bold text-slate-900">
+                            <div>{jobTitle}</div>
+                            <div className="text-[11px] text-slate-500 font-normal">{company}</div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                app.status === 'APPLIED_CONFIRMED'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : app.status === 'PREPARED'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
                             >
-                              <Send className="w-3 h-3" />
-                              <span>Submit</span>
-                            </button>
-                          ) : (
-                            <span className="text-slate-400 text-xs">Locked</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                              {app.status.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 font-mono text-[11px] text-slate-700">
+                            {receiptCode}
+                          </td>
+                          <td className="py-4 px-4 text-slate-600">
+                            {app.submitted_at
+                              ? new Date(app.submitted_at).toLocaleDateString()
+                              : app.created_at
+                              ? new Date(app.created_at).toLocaleDateString()
+                              : 'Pending'}
+                          </td>
+                          <td className="py-4 px-4">
+                            {app.status === 'PREPARED' ? (
+                              <button
+                                onClick={() => handleSubmitApplication(app.id)}
+                                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>Submit</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 text-xs">Locked</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-slate-500">
@@ -888,35 +953,34 @@ export default function App() {
                     </span>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        selectedResume.is_confirmed
+                        isResumeConfirmed(selectedResume)
                           ? 'bg-emerald-100 text-emerald-800'
                           : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {selectedResume.is_confirmed ? 'Verified & Locked' : 'Pending Confirmation'}
+                      {isResumeConfirmed(selectedResume) ? 'Verified & Locked' : 'Pending Confirmation'}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-slate-500 font-semibold block">Full Name</span>
                     <span className="font-bold text-slate-900 text-sm">
-                      {selectedResume.extracted_facts.full_name || profile?.full_name || 'Candidate User'}
+                      {profile?.full_name || 'Candidate User'}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-slate-500 font-semibold block">Email & Experience</span>
                     <span className="text-slate-800">
-                      {selectedResume.extracted_facts.email || profile?.email} •{' '}
-                      {selectedResume.extracted_facts.experience_years || profile?.experience_years || 2} Years
+                      {profile?.email} • {profile?.experience?.length || 2} Roles Listed
                     </span>
                   </div>
 
                   <div>
                     <span className="text-slate-500 font-semibold block mb-1">Confirmed Technical Skills</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {selectedResume.extracted_facts.skills && selectedResume.extracted_facts.skills.length > 0 ? (
-                        selectedResume.extracted_facts.skills.map((s) => (
+                      {getResumeSkills(selectedResume).length > 0 ? (
+                        getResumeSkills(selectedResume).map((s) => (
                           <span
                             key={s}
                             className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-md text-[11px]"
@@ -925,7 +989,7 @@ export default function App() {
                           </span>
                         ))
                       ) : (
-                        <span className="text-slate-400">No skills parsed</span>
+                        <span className="text-slate-400">No skills parsed yet</span>
                       )}
                     </div>
                   </div>
@@ -933,15 +997,15 @@ export default function App() {
                   <div className="pt-2">
                     <button
                       onClick={() => handleConfirmResume(selectedResume.id)}
-                      disabled={selectedResume.is_confirmed}
+                      disabled={isResumeConfirmed(selectedResume)}
                       className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
-                        selectedResume.is_confirmed
+                        isResumeConfirmed(selectedResume)
                           ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                           : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 cursor-pointer'
                       }`}
                     >
                       <Check className="w-4 h-4" />
-                      <span>{selectedResume.is_confirmed ? 'Facts Verified (Ready for ATS)' : 'Confirm & Lock Extracted Facts'}</span>
+                      <span>{isResumeConfirmed(selectedResume) ? 'Facts Verified (Ready for ATS)' : 'Confirm & Lock Extracted Facts'}</span>
                     </button>
                   </div>
                 </div>
@@ -994,7 +1058,7 @@ export default function App() {
 
                 <div>
                   <span className="text-slate-500 font-semibold block mb-1">Target Locations</span>
-                  <span className="text-slate-800">{preferences?.locations?.join(', ') || 'Remote, Bangalore, Kochi'}</span>
+                  <span className="text-slate-800">{preferences?.target_countries?.join(', ') || 'Remote, India'}</span>
                 </div>
               </div>
             </div>
@@ -1039,7 +1103,7 @@ export default function App() {
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
                 <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Audit Log Stream</span>
-                <button onClick={() => fetchDashboard()} className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer">
+                <button onClick={() => fetchRunsAndLogs()} className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer">
                   <RefreshCw className="w-3 h-3" />
                   <span>Refresh</span>
                 </button>
