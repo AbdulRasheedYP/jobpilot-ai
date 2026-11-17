@@ -56,12 +56,12 @@
 
 ## Phase 7 --- Tracking and reliability
 
--   [ ] Build the application dashboard.
--   [ ] Add agent run history.
--   [ ] Add pause, resume and stop controls.
--   [ ] Handle retries and failures.
--   [ ] Test recovery after restart.
--   [ ] Back up the database and CV files.
+-   [x] Build the application dashboard.
+-   [x] Add agent run history.
+-   [x] Add pause, resume and stop controls.
+-   [x] Handle retries and failures.
+-   [x] Test recovery after restart.
+-   [x] Back up the database and CV files.
 
 ## Development rule
 
@@ -72,6 +72,6 @@ end-to-end workflow before adding more job sources or integrations.
 
 ## Review
 
--   [ ] Tasks are in a practical order.
--   [ ] First working version is clearly scoped.
--   [ ] Ready to begin implementation planning.
+-   [x] Tasks are in a practical order.
+-   [x] First working version is clearly scoped.
+-   [x] Ready to begin implementation planning.

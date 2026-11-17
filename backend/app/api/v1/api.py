@@ -8,6 +8,7 @@ from backend.app.api.v1.endpoints import (
     jobs,
     matches,
     applications,
+    agent,
 )
 
 api_router = APIRouter()
@@ -19,3 +20,4 @@ api_router.include_router(sources.router)
 api_router.include_router(jobs.router)
 api_router.include_router(matches.router)
 api_router.include_router(applications.router)
+api_router.include_router(agent.router)

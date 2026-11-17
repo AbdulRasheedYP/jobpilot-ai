@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, Text, ForeignKey, DateTime, Enum as SAEnum, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -60,7 +60,7 @@ class ApplicationAnswer(Base):
     source_profile_field: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships

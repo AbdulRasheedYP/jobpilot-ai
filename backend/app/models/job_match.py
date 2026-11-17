@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, Float, ForeignKey, DateTime, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -31,7 +31,7 @@ class JobMatch(Base):
     missing_skills: Mapped[List[str]] = mapped_column(JSONB, default=list, nullable=False)
     decision_reasons: Mapped[List[str]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
