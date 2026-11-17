@@ -1,6 +1,16 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from backend.app.core.database import Base, engine
+    import backend.app.models  # noqa: F401 - register models
+    Base.metadata.create_all(bind=engine)
+    yield
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -9,6 +19,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
+    lifespan=lifespan,
 )
 
 # Configure CORS
