@@ -80,28 +80,47 @@ export default function App() {
   };
 
   // Authenticated API Fetch Helper
-  const authFetch = async (endpoint, options = {}) => {
+  const authFetch = async (endpoint, options = {}, isRetry = false) => {
+    let currentToken = token;
+    if (!currentToken) {
+      currentToken = await performLogin('candidate@jobpilot.ai', 'password123');
+    }
+
     const headers = {
       ...(options.headers || {}),
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (currentToken) {
+      headers['Authorization'] = `Bearer ${currentToken}`;
     }
     if (!(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
 
-    if (response.status === 401) {
-      await performLogin('candidate@jobpilot.ai', 'password123');
-      return null;
+      if (response.status === 401 && !isRetry) {
+        const freshToken = await performLogin('candidate@jobpilot.ai', 'password123');
+        if (freshToken) {
+          return await authFetch(endpoint, options, true);
+        }
+      }
+
+      return response;
+    } catch (networkErr) {
+      console.error('Fetch error:', networkErr);
+      return {
+        ok: false,
+        status: 0,
+        statusText: 'Connection Refused',
+        json: async () => ({
+          detail: 'Cannot connect to backend server. Make sure uvicorn is running on http://127.0.0.1:8000'
+        })
+      };
     }
-
-    return response;
   };
 
   const performLogin = async (email, password) => {
@@ -332,7 +351,22 @@ export default function App() {
         fetchProfile();
         setSelectedResume(newResume);
       } else {
-        showToast('Failed to parse resume. Check file format.', 'error');
+        let errDetail = 'Unknown upload error.';
+        try {
+          const errData = await res.json();
+          if (typeof errData.detail === 'string') {
+            errDetail = errData.detail;
+          } else if (errData.detail?.message) {
+            errDetail = errData.detail.message;
+          } else if (Array.isArray(errData.detail)) {
+            errDetail = errData.detail.map((d) => d.msg || JSON.stringify(d)).join(', ');
+          } else if (errData.message) {
+            errDetail = errData.message;
+          }
+        } catch (e) {
+          errDetail = `HTTP ${res?.status || 500}: ${res?.statusText || 'Server Error'}`;
+        }
+        showToast(`Upload Failed: ${errDetail}`, 'error');
       }
     } catch (err) {
       showToast('Error uploading resume: ' + err.message, 'error');

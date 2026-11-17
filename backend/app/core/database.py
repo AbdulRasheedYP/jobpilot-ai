@@ -36,21 +36,43 @@ class TimestampMixin:
     )
 
 
-# Database Engine
-if settings.DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True,
-    )
-else:
-    engine = create_engine(
-        settings.DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-    )
+# Database Engine with automatic resilient fallback
+def create_app_engine():
+    import os
+    db_url = settings.DATABASE_URL
+    if not db_url.startswith("sqlite"):
+        try:
+            pg_engine = create_engine(
+                db_url,
+                pool_pre_ping=True,
+                pool_size=10,
+                max_overflow=20,
+            )
+            # Quick connectivity verification
+            with pg_engine.connect() as conn:
+                pass
+            return pg_engine
+        except Exception as e:
+            os.makedirs("./storage", exist_ok=True)
+            fallback_url = "sqlite:///./storage/jobpilot.db"
+            import logging
+            logging.getLogger("uvicorn.error").warning(
+                f"PostgreSQL connection failed ({e}). Resiliently falling back to local SQLite at {fallback_url}."
+            )
+            return create_engine(
+                fallback_url,
+                connect_args={"check_same_thread": False},
+                pool_pre_ping=True,
+            )
+    else:
+        return create_engine(
+            db_url,
+            connect_args={"check_same_thread": False},
+            pool_pre_ping=True,
+        )
 
+
+engine = create_app_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
