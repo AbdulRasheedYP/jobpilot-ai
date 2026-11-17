@@ -53,6 +53,19 @@ def extract_text_from_file(file_bytes: bytes, file_type: str) -> str:
         except Exception as e:
             logger.warning(f"Failed to extract PDF text with pypdf: {e}")
             return ""
+    elif file_type.lower() == "docx":
+        import zipfile
+        import xml.etree.ElementTree as ET
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+                xml_content = z.read("word/document.xml")
+                tree = ET.fromstring(xml_content)
+                namespaces = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+                texts = [node.text for node in tree.iterfind(".//w:t", namespaces) if node.text]
+                return " ".join(texts).strip()
+        except Exception as e:
+            logger.warning(f"Failed to extract text from docx: {e}")
+            return ""
     else:
         # Fallback to UTF-8 text decoding for txt/md
         try:
