@@ -38,6 +38,7 @@ export default function AgentSettingsTab({
   handleToggleWorkMode,
 }) {
   const [validationErrors, setValidationErrors] = useState({});
+  const [selectedCategory, setSelectedCategory] = useState('All');
 
   const validateForm = () => {
     const errs = {};
@@ -188,7 +189,7 @@ export default function AgentSettingsTab({
                     setValidationErrors((prev) => ({ ...prev, target_roles: null }));
                   }
                 }}
-                placeholder="Type keyword to filter IT roles (e.g. Python, Full Stack, DevOps)..."
+                placeholder="Search across 400+ roles or type custom role (e.g. Data Analyst, RPA, Python, Finance)..."
                 className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
               />
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
@@ -202,32 +203,116 @@ export default function AgentSettingsTab({
             </button>
           </form>
 
-          {/* Master IT Roles Dynamic Suggestion Pills */}
+          {/* Quick Level Variations */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            <span className="text-[10px] text-slate-500 font-semibold">Level Prefixes:</span>
+            {['Fresher', 'Junior', 'Associate', 'Executive', 'Senior', 'Lead', 'Manager', 'Intern'].map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => {
+                  const curr = newRoleInput.trim();
+                  if (!curr) {
+                    setNewRoleInput(`${lvl} `);
+                  } else if (!curr.toLowerCase().startsWith(lvl.toLowerCase())) {
+                    setNewRoleInput(`${lvl} ${curr}`);
+                  }
+                }}
+                className="px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-600 text-[10px] font-medium rounded border border-slate-200 transition-colors cursor-pointer"
+              >
+                + {lvl}
+              </button>
+            ))}
+          </div>
+
+          {/* Industry Category Filter Chips (18 Categories) */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-600">
+                Browse Roles by Industry ({Object.keys(metaOptions?.role_categories || {}).length || 18} Categories):
+              </span>
+              {selectedCategory !== 'All' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('All')}
+                  className="text-[10px] text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
+                >
+                  Clear Filter (Show All)
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1.5 scroll-smooth">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('All')}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-full shrink-0 transition-all cursor-pointer ${
+                  selectedCategory === 'All'
+                    ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                All Categories
+              </button>
+              {Object.keys(metaOptions?.role_categories || {}).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded-full shrink-0 transition-all cursor-pointer ${
+                    selectedCategory === cat
+                      ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Master Taxonomy Dynamic Suggestion Pills */}
           <div className="pt-1 space-y-1.5">
             <span className="text-[11px] text-slate-500 font-semibold block">
-              {newRoleInput.trim() ? `Matching Roles for "${newRoleInput}":` : 'Popular IT Roles (Click to add):'}
+              {newRoleInput.trim()
+                ? `Matching Roles for "${newRoleInput}":`
+                : selectedCategory !== 'All'
+                ? `${selectedCategory} Roles (Click to add):`
+                : 'Popular Roles (Click to add or select a category above):'}
             </span>
-            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
-              {(metaOptions?.roles || [])
-                .filter((r) => {
-                  const matchSearch = newRoleInput.trim()
-                    ? r.toLowerCase().includes(newRoleInput.toLowerCase().trim())
-                    : true;
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 border border-slate-100 rounded-lg bg-slate-50/50">
+              {(() => {
+                const pool =
+                  selectedCategory !== 'All' && metaOptions?.role_categories?.[selectedCategory]
+                    ? metaOptions.role_categories[selectedCategory]
+                    : metaOptions?.roles || [];
+                const search = newRoleInput.trim().toLowerCase();
+                const filtered = pool.filter((r) => {
+                  const matchSearch = search ? r.toLowerCase().includes(search) : true;
                   const notAdded = !(prefForm.target_roles || []).some((tr) => tr.toLowerCase() === r.toLowerCase());
                   return matchSearch && notAdded;
-                })
-                .slice(0, newRoleInput.trim() ? 15 : 8)
-                .map((role) => (
+                });
+                const displayList = filtered.slice(0, search ? 30 : selectedCategory !== 'All' ? 40 : 16);
+
+                if (displayList.length === 0) {
+                  return (
+                    <span className="text-[11px] text-slate-400 py-1 px-2 italic">
+                      No matching unselected roles found. Type in the box above to add a custom role.
+                    </span>
+                  );
+                }
+
+                return displayList.map((role) => (
                   <button
                     key={role}
                     type="button"
                     onClick={() => handleSelectRoleOptionWithClear(role)}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
+                    className="px-2.5 py-1 bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
                   >
-                    <Plus className="w-3 h-3 text-slate-400" />
+                    <Plus className="w-3 h-3 text-emerald-500" />
                     <span>{role}</span>
                   </button>
-                ))}
+                ));
+              })()}
             </div>
           </div>
         </div>

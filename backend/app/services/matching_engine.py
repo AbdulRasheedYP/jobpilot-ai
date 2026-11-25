@@ -42,11 +42,19 @@ def check_eligibility(
     def _word_in_text(w: str, text: str) -> bool:
         return bool(re.search(r"\b" + re.escape(w) + r"\b", text))
 
+    STOP_WORDS = {"and", "the", "for", "with", "level", "core", "general", "to", "in", "of", "at", "by", "on"}
     title_matches = any(
-        any(_word_in_text(word, job_title_lower) for word in target_role.split() if len(word) > 2)
+        any(_word_in_text(word, job_title_lower) for word in target_role.split() if len(word) >= 2 and word not in STOP_WORDS)
         for target_role in target_roles
     )
-    if not title_matches and not any(_word_in_text(r, job_title_lower) for r in ["software", "developer", "engineer", "python", "backend", "frontend", "fullstack", "programmer"]):
+
+    candidate_seeks_software = any(
+        any(_word_in_text(w, tr) for w in ["software", "developer", "engineer", "programmer", "devops", "cloud", "frontend", "backend", "fullstack", "architect"])
+        for tr in target_roles
+    )
+    job_is_software = any(_word_in_text(r, job_title_lower) for r in ["software", "developer", "engineer", "programmer", "devops", "frontend", "backend", "fullstack"])
+
+    if not title_matches and not (candidate_seeks_software and job_is_software):
         details["role_suitability"] = "FAIL"
         reasons.append(f"Role '{job.title}' does not match target roles ({', '.join(pref.target_roles)}).")
         return False, details, reasons
