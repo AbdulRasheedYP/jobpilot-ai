@@ -96,9 +96,12 @@ export default function App() {
 
   const [prefForm, setPrefForm] = useState({
     target_roles: ['Python Developer', 'Backend Developer'],
-    target_countries: ['India', 'Remote'],
+    target_countries: ['India', 'Kerala', 'Remote'],
     work_modes: ['remote', 'hybrid', 'onsite'],
     min_match_score: 65,
+    min_salary: 6,
+    max_salary: 15,
+    currency: 'LPA',
   });
 
   const [savingProfile, setSavingProfile] = useState(false);
@@ -249,9 +252,12 @@ export default function App() {
     if (preferences) {
       setPrefForm({
         target_roles: preferences.target_roles || ['Python Developer', 'Backend Developer'],
-        target_countries: preferences.target_countries || ['India', 'Remote'],
+        target_countries: preferences.target_countries || ['India', 'Kerala', 'Remote'],
         work_modes: preferences.work_modes || ['remote', 'hybrid', 'onsite'],
         min_match_score: preferences.min_match_score || 65,
+        min_salary: preferences.min_salary || 6,
+        max_salary: preferences.max_salary || 15,
+        currency: preferences.currency || 'LPA',
       });
     }
   }, [preferences]);
@@ -497,6 +503,9 @@ export default function App() {
           target_countries: prefForm.target_countries,
           work_modes: prefForm.work_modes,
           min_match_score: Number(prefForm.min_match_score) || 65,
+          min_salary: Number(prefForm.min_salary) || null,
+          max_salary: Number(prefForm.max_salary) || null,
+          currency: prefForm.currency || 'LPA',
         }),
       });
 
@@ -616,11 +625,13 @@ export default function App() {
 
   const handleSyncJobs = async () => {
     setLoading(true);
-    showToast('Fetching live jobs from Arbeitnow...', 'info');
+    const queryRole = prefForm.target_roles?.[0] || 'Python';
+    const loc = prefForm.target_countries?.[0] || 'India';
+    showToast(`Discovering jobs for "${queryRole}" in ${loc}...`, 'info');
     try {
       const res = await authFetch('/jobs/sync', {
         method: 'POST',
-        body: JSON.stringify({ source_code: 'arbeitnow', query: 'Python' }),
+        body: JSON.stringify({ source_code: 'arbeitnow', query: queryRole, location: loc }),
       });
       if (res && res.ok) {
         const data = await res.json();
@@ -1510,27 +1521,60 @@ export default function App() {
 
                   {/* Work Modes */}
                   <div className="text-xs space-y-2 pt-2">
-                    <label className="block text-slate-500 font-semibold">Allowed Work Modes</label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-slate-500 font-semibold">Allowed Work Modes</label>
+                      <button
+                        type="button"
+                        onClick={() => setPrefForm({ ...prefForm, work_modes: ['remote', 'hybrid'] })}
+                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 cursor-pointer"
+                      >
+                        ⚡ Both (Remote & Hybrid)
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       {['remote', 'hybrid', 'onsite'].map((mode) => (
                         <label
                           key={mode}
                           onClick={() => handleToggleWorkMode(mode)}
                           className={`px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider cursor-pointer transition-all ${
                             prefForm.work_modes.includes(mode)
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs'
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs font-bold'
                               : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
                           }`}
                         >
-                          {mode}
+                          {mode === 'remote' ? '🌐 Remote' : mode === 'hybrid' ? '🏢 Hybrid' : '📍 Onsite'}
                         </label>
                       ))}
                     </div>
                   </div>
 
-                  {/* Target Locations */}
+                  {/* Target Locations with Quick Presets */}
                   <div className="text-xs space-y-2 pt-2">
-                    <label className="block text-slate-500 font-semibold">Target Locations / Countries</label>
+                    <label className="block text-slate-500 font-semibold">Target Search Locations</label>
+                    
+                    {/* Quick Location Preset Pills */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-slate-400 font-medium">Quick add:</span>
+                      {['India', 'Kerala', 'Kochi', 'Remote', 'Bangalore', 'Hyderabad'].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            if (!prefForm.target_countries.includes(preset)) {
+                              setPrefForm({ ...prefForm, target_countries: [...prefForm.target_countries, preset] });
+                            }
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-all cursor-pointer ${
+                            prefForm.target_countries.includes(preset)
+                              ? 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold'
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          + {preset}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-slate-50 rounded-xl border border-slate-200">
                       {prefForm.target_countries.map((loc) => (
                         <span
@@ -1553,7 +1597,7 @@ export default function App() {
                         type="text"
                         value={newLocationInput}
                         onChange={(e) => setNewLocationInput(e.target.value)}
-                        placeholder="Add location (e.g. Remote, India, Bangalore)..."
+                        placeholder="Add custom location (e.g. Kerala, India, Remote)..."
                         className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
                       />
                       <button
@@ -1566,8 +1610,40 @@ export default function App() {
                     </form>
                   </div>
 
+                  {/* Expected Salary & Average LPA */}
+                  <div className="text-xs space-y-2 pt-2 border-t border-slate-100">
+                    <label className="block text-slate-500 font-semibold">Expected Salary / Average LPA</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[11px] text-slate-400 block mb-1">Minimum (LPA / INR)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 6"
+                          value={prefForm.min_salary || ''}
+                          onChange={(e) => setPrefForm({ ...prefForm, min_salary: e.target.value })}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block mb-1">Target / Average (LPA)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 12"
+                          value={prefForm.max_salary || ''}
+                          onChange={(e) => setPrefForm({ ...prefForm, max_salary: e.target.value })}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block">
+                      Target package range: {prefForm.min_salary || 6} – {prefForm.max_salary || 15} LPA ({prefForm.currency || 'INR'})
+                    </span>
+                  </div>
+
                   {/* Minimum Match Score Threshold */}
-                  <div className="text-xs space-y-2 pt-2">
+                  <div className="text-xs space-y-2 pt-2 border-t border-slate-100">
                     <div className="flex items-center justify-between">
                       <label className="text-slate-500 font-semibold">Minimum Match Score Threshold</label>
                       <span className="font-bold text-emerald-600 text-sm">{prefForm.min_match_score}%</span>
@@ -1581,7 +1657,7 @@ export default function App() {
                       className="w-full accent-emerald-600 cursor-pointer"
                     />
                     <span className="text-[11px] text-slate-400 block">
-                      Jobs with a match score above this threshold will receive priority ranking.
+                      Jobs matching {prefForm.min_match_score}% or higher will be prioritized.
                     </span>
                   </div>
                 </div>

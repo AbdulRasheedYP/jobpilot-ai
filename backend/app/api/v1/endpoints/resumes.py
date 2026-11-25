@@ -1,6 +1,6 @@
 import uuid
 from typing import List
-from fastapi import APIRouter, Depends, UploadFile, File, status
+from fastapi import APIRouter, Depends, UploadFile, File, status, HTTPException
 from sqlalchemy.orm import Session
 from backend.app.api.deps import get_db, get_current_user
 from backend.app.models.user_profile import UserProfile
@@ -24,11 +24,21 @@ async def upload_resume(
     Upload candidate CV (PDF, DOCX, or TXT).
     Saves the file to local storage and parses structured facts using Gemini LLM.
     """
-    return await resume_service.save_and_parse_resume(
-        db=db,
-        user=current_user,
-        file=file,
-    )
+    try:
+        return await resume_service.save_and_parse_resume(
+            db=db,
+            user=current_user,
+            file=file,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception(f"Error parsing uploaded resume: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to process and parse resume: {str(e)}",
+        )
 
 
 @router.get("", response_model=List[ResumeResponse])

@@ -54,41 +54,48 @@ async def save_and_parse_resume(
     parsed_facts = await extract_facts_with_llm(text)
 
     # Auto-fill UserProfile from extracted CV facts
-    if parsed_facts.get("full_name") and parsed_facts["full_name"].strip():
+    if parsed_facts.get("full_name") and isinstance(parsed_facts["full_name"], str) and parsed_facts["full_name"].strip():
         user.full_name = parsed_facts["full_name"].strip()
-    if parsed_facts.get("phone") and parsed_facts["phone"].strip():
+    if parsed_facts.get("phone") and isinstance(parsed_facts["phone"], str) and parsed_facts["phone"].strip():
         user.phone = parsed_facts["phone"].strip()
-    if parsed_facts.get("current_location") and parsed_facts["current_location"].strip():
+    if parsed_facts.get("current_location") and isinstance(parsed_facts["current_location"], str) and parsed_facts["current_location"].strip():
         user.current_location = parsed_facts["current_location"].strip()
 
     extracted_skills = parsed_facts.get("extracted_skills") or []
-    if extracted_skills:
+    if isinstance(extracted_skills, list) and extracted_skills:
         current_skills = list(user.skills or [])
         for s in extracted_skills:
-            if not any(cs.lower() == s.lower() for cs in current_skills):
-                current_skills.append(s)
+            if isinstance(s, dict):
+                s = s.get("name") or s.get("skill") or str(s)
+            if not isinstance(s, str) or not s.strip():
+                continue
+            s_clean = s.strip()
+            if not any(isinstance(cs, str) and cs.lower() == s_clean.lower() for cs in current_skills):
+                current_skills.append(s_clean)
         user.skills = current_skills
 
-    if parsed_facts.get("extracted_education"):
+    if isinstance(parsed_facts.get("extracted_education"), list):
         user.education = parsed_facts["extracted_education"]
 
-    if parsed_facts.get("extracted_experience"):
+    if isinstance(parsed_facts.get("extracted_experience"), list):
         user.experience = parsed_facts["extracted_experience"]
 
     # Also update or initialize JobPreference with inferred roles/locations
     from backend.app.services.preference_service import get_or_create_preferences
     pref = get_or_create_preferences(db=db, user_id=user.id)
     inferred_roles = parsed_facts.get("inferred_target_roles") or []
-    if inferred_roles:
+    if isinstance(inferred_roles, list) and inferred_roles:
+        clean_roles = [r.strip() for r in inferred_roles if isinstance(r, str) and r.strip()]
         default_roles = ["Python Developer", "Backend Developer"]
-        if not pref.target_roles or pref.target_roles == default_roles:
-            pref.target_roles = inferred_roles
-    if parsed_facts.get("current_location"):
-        loc = parsed_facts["current_location"]
-        curr_locs = list(pref.target_countries or [])
-        if loc not in curr_locs:
-            curr_locs.append(loc)
-            pref.target_countries = curr_locs
+        if clean_roles and (not pref.target_roles or pref.target_roles == default_roles):
+            pref.target_roles = clean_roles
+    if parsed_facts.get("current_location") and isinstance(parsed_facts["current_location"], str):
+        loc = parsed_facts["current_location"].strip()
+        if loc:
+            curr_locs = list(pref.target_countries or [])
+            if loc not in curr_locs:
+                curr_locs.append(loc)
+                pref.target_countries = curr_locs
 
     # Create Resume DB record
     resume = Resume(
