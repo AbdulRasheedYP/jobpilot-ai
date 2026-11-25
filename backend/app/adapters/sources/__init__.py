@@ -3,8 +3,10 @@ from backend.app.adapters.sources.base import JobSourceAdapter, JobPayload, norm
 from backend.app.adapters.sources.arbeitnow import ArbeitnowAdapter
 from backend.app.adapters.sources.adzuna import AdzunaAdapter
 from backend.app.adapters.sources.mock_portal import MockPortalAdapter
+from backend.app.adapters.sources.live_aggregator import LiveJobAggregatorAdapter
 
 ADAPTER_REGISTRY: Dict[str, Type[JobSourceAdapter]] = {
+    "live_aggregator": LiveJobAggregatorAdapter,
     "arbeitnow": ArbeitnowAdapter,
     "adzuna": AdzunaAdapter,
     "mock_portal": MockPortalAdapter,

@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SOURCES = [
     {
+        "name": "Live Indeed & LinkedIn Feed",
+        "code": "live_aggregator",
+        "adapter_class": "LiveJobAggregatorAdapter",
+        "is_enabled": True,
+        "permits_auto_apply": False,
+        "rate_limit_per_minute": 15,
+        "config": {},
+    },
+    {
         "name": "Arbeitnow Official Feed",
         "code": "arbeitnow",
         "adapter_class": "ArbeitnowAdapter",
@@ -29,7 +38,7 @@ DEFAULT_SOURCES = [
         "name": "Local Mock Career Portal (Testing)",
         "code": "mock_portal",
         "adapter_class": "MockPortalAdapter",
-        "is_enabled": True,
+        "is_enabled": False,
         "permits_auto_apply": True,
         "rate_limit_per_minute": 60,
         "config": {},
@@ -48,9 +57,9 @@ DEFAULT_SOURCES = [
 
 def seed_default_sources_if_empty(db: Session) -> None:
     """Ensures default permitted job sources exist in the database."""
-    count = db.query(JobSource).count()
-    if count == 0:
-        for s in DEFAULT_SOURCES:
+    for s in DEFAULT_SOURCES:
+        existing = db.query(JobSource).filter(JobSource.code == s["code"]).first()
+        if not existing:
             src = JobSource(
                 id=uuid.uuid4(),
                 name=s["name"],
@@ -62,7 +71,7 @@ def seed_default_sources_if_empty(db: Session) -> None:
                 config=s["config"],
             )
             db.add(src)
-        db.commit()
+    db.commit()
 
 
 def list_job_sources(db: Session) -> List[JobSource]:
