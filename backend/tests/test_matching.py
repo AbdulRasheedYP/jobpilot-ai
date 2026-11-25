@@ -141,3 +141,58 @@ async def test_matches_api_flow(async_client: AsyncClient, auth_headers: dict):
     detail = detail_resp.json()
     assert detail["id"] == match_id
     assert "skills_match" in detail["score_breakdown"]
+
+
+def test_eligibility_location_strict_mismatch():
+    user = UserProfile(id=uuid.uuid4(), full_name="Jane", email="jane@test.com", hashed_password="pw")
+    pref = JobPreference(
+        id=uuid.uuid4(),
+        user_profile_id=user.id,
+        target_roles=["Python Developer"],
+        target_countries=["Kochi", "Kerala"],
+        work_modes=["onsite", "hybrid"],
+    )
+    job = Job(
+        id=uuid.uuid4(),
+        title="Python Developer",
+        company_name="Tokyo AI Corp",
+        description="Coding in Python",
+        location="Tokyo, Japan",
+        is_remote=False,
+        application_url="http://test/loc",
+        canonical_url="http://test/loc",
+    )
+    passed, details, reasons = check_eligibility(user, pref, job)
+    assert passed is False
+    assert details["work_mode"] == "FAIL"
+    assert "does not match candidate target search locations" in reasons[0]
+
+
+def test_eligibility_date_freshness_expired():
+    from datetime import datetime, timezone, timedelta
+    user = UserProfile(id=uuid.uuid4(), full_name="Jane", email="jane@test.com", hashed_password="pw")
+    pref = JobPreference(
+        id=uuid.uuid4(),
+        user_profile_id=user.id,
+        target_roles=["Python Developer"],
+        target_countries=["India"],
+        work_modes=["remote"],
+        posted_within_days=3,
+    )
+    old_date = datetime.now(timezone.utc) - timedelta(days=10)
+    job = Job(
+        id=uuid.uuid4(),
+        title="Python Developer",
+        company_name="Acme Corp",
+        description="Coding in Python",
+        location="Remote",
+        is_remote=True,
+        posted_at=old_date,
+        application_url="http://test/old",
+        canonical_url="http://test/old",
+    )
+    passed, details, reasons = check_eligibility(user, pref, job)
+    assert passed is False
+    assert details["date_freshness"] == "FAIL"
+    assert "older than the 3-day search threshold" in reasons[0]
+

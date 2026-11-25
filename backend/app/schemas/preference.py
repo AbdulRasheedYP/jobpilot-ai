@@ -13,6 +13,7 @@ class JobPreferenceBase(BaseModel):
     max_salary: Optional[int] = None
     currency: str = "INR"
     min_match_score: int = 65
+    posted_within_days: Optional[int] = 7
     auto_apply_enabled: bool = False
     daily_application_limit: int = 5
     weekly_application_limit: int = 25
@@ -28,6 +29,7 @@ class JobPreferenceUpdate(BaseModel):
     max_salary: Optional[int] = None
     currency: Optional[str] = None
     min_match_score: Optional[int] = None
+    posted_within_days: Optional[int] = None
     auto_apply_enabled: Optional[bool] = None
     daily_application_limit: Optional[int] = None
     weekly_application_limit: Optional[int] = None

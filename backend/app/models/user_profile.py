@@ -61,6 +61,7 @@ class JobPreference(Base, TimestampMixin):
     max_salary: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
     min_match_score: Mapped[int] = mapped_column(Integer, default=65, nullable=False)
+    posted_within_days: Mapped[Optional[int]] = mapped_column(Integer, default=7, nullable=True)
     auto_apply_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     daily_application_limit: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     weekly_application_limit: Mapped[int] = mapped_column(Integer, default=25, nullable=False)

@@ -92,6 +92,20 @@ async def execute_agent_cycle(
         log_event(db, run.id, "INIT", "RUN_FAILED", run.error_message)
         raise HTTPException(status_code=400, detail=run.error_message)
 
+    if not pref.work_modes or not len(pref.work_modes):
+        run.status = AgentRunStatus.FAILED
+        run.error_message = "Allowed Work Modes are required to run the agent cycle."
+        db.commit()
+        log_event(db, run.id, "INIT", "RUN_FAILED", run.error_message)
+        raise HTTPException(status_code=400, detail=run.error_message)
+
+    if pref.min_salary is None or pref.max_salary is None:
+        run.status = AgentRunStatus.FAILED
+        run.error_message = "Expected Salary Range (Min and Max LPA) is required to run the agent cycle."
+        db.commit()
+        log_event(db, run.id, "INIT", "RUN_FAILED", run.error_message)
+        raise HTTPException(status_code=400, detail=run.error_message)
+
     try:
         # --- Stage 1: Job Discovery ---
         if run_type in ["DISCOVERY", "FULL_CYCLE"]:
@@ -107,7 +121,12 @@ async def execute_agent_cycle(
                     if new_jobs >= 10:
                         break
                     try:
-                        sync_res = await ingest_jobs_from_source(db=db, source=src, search_query=term)
+                        sync_res = await ingest_jobs_from_source(
+                            db=db,
+                            source=src,
+                            search_query=term,
+                            location=clean_locations[0] if clean_locations else None,
+                        )
                         new_jobs += sync_res.new_jobs
                     except Exception as e:
                         logger.error(f"Discovery error on {src.code}: {e}")

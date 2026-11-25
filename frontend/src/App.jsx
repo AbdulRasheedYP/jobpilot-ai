@@ -210,6 +210,7 @@ export default function App() {
     target_countries: ['India', 'Kerala', 'Remote'],
     work_modes: ['remote', 'hybrid', 'onsite'],
     min_match_score: 65,
+    posted_within_days: 7,
     min_salary: 6,
     max_salary: 15,
     currency: 'LPA',
@@ -356,6 +357,7 @@ export default function App() {
         target_countries: preferences.target_countries || ['India', 'Kerala', 'Remote'],
         work_modes: preferences.work_modes || ['remote', 'hybrid', 'onsite'],
         min_match_score: preferences.min_match_score || 65,
+        posted_within_days: preferences.posted_within_days || 7,
         min_salary: preferences.min_salary || 6,
         max_salary: preferences.max_salary || 15,
         currency: preferences.currency || 'LPA',
@@ -597,24 +599,11 @@ export default function App() {
         }),
       });
 
-      const prefRes = await authFetch('/preferences', {
-        method: 'PUT',
-        body: JSON.stringify({
-          target_roles: prefForm.target_roles,
-          target_countries: prefForm.target_countries,
-          work_modes: prefForm.work_modes,
-          min_match_score: Number(prefForm.min_match_score) || 65,
-          min_salary: Number(prefForm.min_salary) || null,
-          max_salary: Number(prefForm.max_salary) || null,
-          currency: prefForm.currency || 'LPA',
-        }),
-      });
-
-      if (profRes && profRes.ok && prefRes && prefRes.ok) {
-        showToast('Profile & preferences saved! Jobs re-scored and ranked.', 'success');
+      if (profRes && profRes.ok) {
+        showToast('Profile credentials saved successfully!', 'success');
         await fetchProfile();
-        await fetchPreferences();
         await fetchJobs();
+        await fetchMatches();
       } else {
         showToast('Failed to save profile changes.', 'error');
       }
@@ -622,6 +611,68 @@ export default function App() {
       showToast('Error saving profile: ' + err.message, 'error');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSavePreferences = async (silent = false) => {
+    const cleanRoles = (prefForm.target_roles || []).filter((r) => r && r.trim());
+    if (cleanRoles.length === 0) {
+      showToast('Target Roles are required! Please add at least one role.', 'warning');
+      return false;
+    }
+    const cleanLocations = (prefForm.target_countries || []).filter((c) => c && c.trim());
+    if (cleanLocations.length === 0) {
+      showToast('Target Search Locations are required! Please add at least one location.', 'warning');
+      return false;
+    }
+    if (!prefForm.work_modes || prefForm.work_modes.length === 0) {
+      showToast('Allowed Work Modes are required! Please select at least one mode.', 'warning');
+      return false;
+    }
+    if (prefForm.min_salary === '' || prefForm.max_salary === '') {
+      showToast('Expected Salary Range is required! Please enter min and target LPA.', 'warning');
+      return false;
+    }
+
+    setSavingProfile(true);
+    try {
+      const prefRes = await authFetch('/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({
+          target_roles: cleanRoles,
+          target_countries: cleanLocations,
+          work_modes: prefForm.work_modes,
+          min_match_score: Number(prefForm.min_match_score) || 65,
+          posted_within_days: Number(prefForm.posted_within_days) || 7,
+          min_salary: Number(prefForm.min_salary) || 6,
+          max_salary: Number(prefForm.max_salary) || 15,
+          currency: prefForm.currency || 'LPA',
+        }),
+      });
+
+      if (prefRes && prefRes.ok) {
+        if (!silent) showToast('Agent search settings saved! Job matches re-calculated.', 'success');
+        await fetchPreferences();
+        await fetchJobs();
+        await fetchMatches();
+        return true;
+      } else {
+        const err = await prefRes.json().catch(() => ({}));
+        showToast(err.detail || 'Failed to save search settings.', 'error');
+        return false;
+      }
+    } catch (err) {
+      showToast('Error saving settings: ' + err.message, 'error');
+      return false;
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleSaveAndTriggerAgent = async () => {
+    const saved = await handleSavePreferences(true);
+    if (saved) {
+      await handleTriggerAgent();
     }
   };
 
@@ -889,20 +940,24 @@ export default function App() {
   };
 
   const handleTriggerAgent = async () => {
-    // Required Validation: Target Roles & Locations must not be empty
+    // Required Validation: Target Roles, Locations & Modes
     const cleanRoles = (prefForm.target_roles || []).filter((r) => r && r.trim());
     if (cleanRoles.length === 0) {
       showToast('Target Roles are required before starting the Agent! Please add at least one role.', 'warning');
-      setActiveTab('profile');
-      setProfileSection('preferences');
+      setActiveTab('agent');
       return;
     }
 
     const cleanLocations = (prefForm.target_countries || []).filter((c) => c && c.trim());
     if (cleanLocations.length === 0) {
       showToast('Target Search Locations are required before starting the Agent! Please add at least one location.', 'warning');
-      setActiveTab('profile');
-      setProfileSection('preferences');
+      setActiveTab('agent');
+      return;
+    }
+
+    if (!prefForm.work_modes || prefForm.work_modes.length === 0) {
+      showToast('Allowed Work Modes are required! Please select at least one mode.', 'warning');
+      setActiveTab('agent');
       return;
     }
 
@@ -912,7 +967,7 @@ export default function App() {
     setAgentStep(1);
     setAgentStepLogs([
       `Agent cycle initiated strictly upon button click.`,
-      `Stage 1: Scanning enabled job sources for "${cleanRoles[0]}" in "${cleanLocations[0]}" (limit: 10 jobs)...`,
+      `Stage 1: Scanning enabled job sources for "${cleanRoles[0]}" in "${cleanLocations[0]}" (freshness: within ${prefForm.posted_within_days || 7} days, limit: 10 jobs)...`,
     ]);
 
     try {
@@ -921,6 +976,7 @@ export default function App() {
         setAgentStepLogs((prev) => [
           ...prev,
           `Stage 2: Running 5-factor Decision Engine (Skills 35%, Roles 25%, Experience 20%, Locations 10%, Education 10%)...`,
+          `Applying Minimum Match Score Threshold (${prefForm.min_match_score}%) and strict location match...`,
         ]);
       }, 700);
 
@@ -942,10 +998,7 @@ export default function App() {
         const errData = await res?.json().catch(() => ({}));
         showToast(errData.detail || 'Failed to start agent cycle.', 'error');
         setAgentStepLogs((prev) => [...prev, `Error: ${errData.detail || 'Execution failed'}`]);
-        if (errData.detail && (errData.detail.includes('Target Roles') || errData.detail.includes('Target Search Locations') || errData.detail.includes('Profile'))) {
-          setActiveTab('profile');
-          setProfileSection('preferences');
-        }
+        setActiveTab('agent');
       }
     } catch (e) {
       showToast('Error triggering agent: ' + e.message, 'error');
@@ -1021,23 +1074,19 @@ export default function App() {
               <Bot className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
                 JobPilot AI
-                <span className="text-[10px] uppercase tracking-wider bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                  v1.0 Cloud
-                </span>
               </h1>
-              <p className="text-xs text-slate-500 font-medium">Autonomous 24/7 Job Search & Application Agent</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full border bg-slate-50 border-slate-200">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-slate-700 font-semibold">
-                {activeRun ? activeRun.status : 'Agent Online'}
-              </span>
-            </div>
+            {isRunning && (
+              <div className="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-800">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                <span className="font-semibold">Agent Running (10 Jobs)...</span>
+              </div>
+            )}
             <div className="flex items-center space-x-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full font-semibold">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>Zero-Hallucination Guard Active</span>
@@ -1055,7 +1104,7 @@ export default function App() {
             { id: 'jobs', label: 'Discovered Jobs', icon: Briefcase },
             { id: 'applications', label: 'Applications Tracker', icon: CheckCircle2 },
             { id: 'profile', label: 'Profile & CV Center', icon: UserCheck },
-            { id: 'agent', label: 'Agent Control & Logs', icon: Bot },
+            { id: 'agent', label: 'Agent Search Settings', icon: Sliders },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -1116,100 +1165,91 @@ export default function App() {
               </div>
             </div>
 
-            {/* Quick Agent Status & Top Matches */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-5">
+            {/* Top Scored Job Matches Board */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between mb-5 border-b border-slate-100 pb-4 gap-3">
+                <div>
                   <h2 className="text-base font-bold text-slate-900">Top Scored Job Matches</h2>
-                  <button onClick={() => setActiveTab('jobs')} className="text-xs text-emerald-600 font-semibold hover:underline cursor-pointer">
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Live job listings scored and ordered strictly by candidate match. Click 'Apply on Site' to open original employer posting directly in a new tab.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setActiveTab('agent')}
+                    className="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Agent Search Settings</span>
+                  </button>
+                  <button onClick={() => setActiveTab('jobs')} className="text-xs text-slate-600 hover:text-slate-900 font-semibold underline cursor-pointer">
                     View All ({jobs.length})
                   </button>
                 </div>
-                <div className="flex flex-col gap-4">
-                  {jobs.length > 0 ? (
-                    jobs.slice(0, 3).map((job) => {
-                      const match = matches.find((m) => m.job_id === job.id);
-                      return (
-                        <div
-                          key={job.id}
-                          className="p-4 rounded-xl border border-slate-100 bg-slate-50 hover:border-slate-200 transition-all flex justify-between items-start"
-                        >
-                          <div>
-                            <h3 className="font-bold text-slate-900 text-sm">{job.title}</h3>
-                            <p className="text-xs text-slate-600 mt-0.5 flex items-center gap-2">
-                              <Building className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{job.company_name}</span>
-                              <span>•</span>
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{job.location || 'Remote'}</span>
-                            </p>
-                            <div className="flex flex-wrap gap-1.5 mt-2.5">
-                              {job.skills_required &&
-                                job.skills_required.slice(0, 4).map((s) => (
-                                  <span
-                                    key={s}
-                                    className="text-[11px] font-medium bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md"
-                                  >
-                                    {s}
-                                  </span>
-                                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {jobs.length > 0 ? (
+                  jobs.slice(0, 6).map((job) => {
+                    const match = matches.find((m) => m.job_id === job.id);
+                    const score = match ? match.overall_score : (job.match_score || 0);
+                    return (
+                      <div
+                        key={job.id}
+                        className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:border-emerald-200 hover:bg-white transition-all flex flex-col justify-between gap-3 shadow-2xs"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <h3 className="font-bold text-slate-900 text-sm leading-snug">{job.title}</h3>
+                              <p className="text-xs text-slate-600 mt-1 flex items-center gap-2">
+                                <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="font-medium">{job.company_name}</span>
+                                <span>•</span>
+                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span>{job.location || 'Remote'}</span>
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-base font-black text-emerald-600">
+                                {score > 0 ? `${score.toFixed(0)}%` : 'New'}
+                              </span>
+                              <span className="block text-[10px] text-slate-400 font-medium">Fit Score</span>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <span className="text-lg font-black text-emerald-600">
-                              {match ? `${match.overall_score.toFixed(0)}%` : 'New'}
-                            </span>
-                            <span className="block text-[10px] text-slate-500 font-medium">Match Score</span>
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {job.skills_required &&
+                              job.skills_required.slice(0, 3).map((s) => (
+                                <span
+                                  key={s}
+                                  className="text-[11px] font-medium bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md"
+                                >
+                                  {s}
+                                </span>
+                              ))}
                           </div>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-slate-500 text-xs">
-                      No jobs discovered yet. Click "Discovered Jobs" tab and sync live listings.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Agent Status Panel */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 mb-2">User-Triggered Agent Engine</h2>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-6">
-                    Runs only when you click "Start Cycle". In each run, the agent discovers up to 10 matching jobs, scores them against your verified CV profile, and displays direct links to apply manually.
-                  </p>
-
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500">Agent Mode:</span>
-                      <span className="font-bold text-slate-900">
-                        Manual Button-Click Only
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500">Jobs Per Start Cycle:</span>
-                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        Max 10 Jobs
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500">Last Run Status:</span>
-                      <span className="font-bold text-slate-800">
-                        {activeRun ? activeRun.status : 'Ready to Start'}
-                      </span>
-                    </div>
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">
+                            {job.is_applied ? '✓ Already Applied' : 'Ready to apply'}
+                          </span>
+                          <a
+                            href={job.canonical_url || job.application_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                          >
+                            <span>Apply on Site</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full text-center py-12 text-slate-500 text-xs">
+                    No jobs discovered yet. Go to "Agent Search Settings" to configure roles and start the agent cycle.
                   </div>
-                </div>
-
-                <button
-                  onClick={handleTriggerAgent}
-                  disabled={isRunning}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
-                  <span>{isRunning ? 'Processing 10 Jobs...' : 'Start Cycle (Discover & Score 10 Jobs)'}</span>
-                </button>
+                )}
               </div>
             </div>
           </div>
@@ -1574,7 +1614,6 @@ export default function App() {
                   {[
                     { id: 'cv_sync', label: 'CV File & Sync', icon: FileCheck, badge: selectedResume ? 'Active' : 'Empty' },
                     { id: 'personal', label: 'Personal Details', icon: UserCheck, badge: profileForm.full_name ? 'Filled' : 'Required' },
-                    { id: 'preferences', label: 'Target Roles & Locations', icon: Sliders, badge: `${prefForm.target_roles.length} Roles` },
                     { id: 'skills', label: 'Technical Skills', icon: Zap, badge: `${profileForm.skills.length}` },
                     { id: 'experience', label: 'Work Experience', icon: Briefcase, badge: `${profileForm.experience.length}` },
                     { id: 'education', label: 'Education Credentials', icon: GraduationCap, badge: `${profileForm.education.length}` },
@@ -1785,279 +1824,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* SUB-SECTION 3: Target Roles & Locations */}
-                {profileSection === 'preferences' && (
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-                    <div className="border-b border-slate-100 pb-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                          <Sliders className="w-5 h-5 text-emerald-600" />
-                          <span>Target Roles, Locations & Preferences</span>
-                        </h3>
-                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
-                          * Roles & Locations Required for Agent
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Select from comprehensive IT roles and locations with live keyword search filtering.
-                      </p>
-                    </div>
 
-                    {/* Validation Warning Alert if either is empty */}
-                    {(!prefForm.target_roles.length || !prefForm.target_countries.length) && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
-                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>
-                          <strong>Configuration Needed:</strong> Both <strong>Target Roles</strong> and <strong>Target Locations</strong> are required before starting the Agent cycle.
-                        </span>
-                      </div>
-                    )}
-
-                    {/* 1. Target Roles with Master IT Options & Live Search */}
-                    <div className="space-y-2.5 text-xs">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <label className="font-bold text-slate-800">Target Roles ({prefForm.target_roles.length})</label>
-                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                            Required *
-                          </span>
-                        </div>
-                        <span className="text-slate-400 text-[11px]">Type below to filter IT roles</span>
-                      </div>
-
-                      {/* Selected Roles Badges */}
-                      <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        {prefForm.target_roles.map((role) => (
-                          <span
-                            key={role}
-                            className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
-                          >
-                            <span>{role}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveRole(role)}
-                              className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Role Input with Type Search */}
-                      <form onSubmit={handleAddRole} className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            value={newRoleInput}
-                            onChange={(e) => setNewRoleInput(e.target.value)}
-                            placeholder="Type keyword to filter IT roles (e.g. Python, Full Stack, DevOps)..."
-                            className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
-                          />
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                        </div>
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add</span>
-                        </button>
-                      </form>
-
-                      {/* Master IT Roles Dynamic Suggestion Pills */}
-                      <div className="pt-1 space-y-1.5">
-                        <span className="text-[11px] text-slate-500 font-semibold block">
-                          {newRoleInput.trim() ? `Matching Roles for "${newRoleInput}":` : 'Popular IT Roles (Click to add):'}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
-                          {IT_ROLES_MASTER
-                            .filter((r) => {
-                              const matchSearch = newRoleInput.trim()
-                                ? r.toLowerCase().includes(newRoleInput.toLowerCase().trim())
-                                : true;
-                              const notAdded = !prefForm.target_roles.some((tr) => tr.toLowerCase() === r.toLowerCase());
-                              return matchSearch && notAdded;
-                            })
-                            .slice(0, newRoleInput.trim() ? 15 : 8)
-                            .map((role) => (
-                              <button
-                                key={role}
-                                type="button"
-                                onClick={() => handleSelectRoleOption(role)}
-                                className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
-                              >
-                                <Plus className="w-3 h-3 text-slate-400" />
-                                <span>{role}</span>
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 2. Allowed Work Modes */}
-                    <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <label className="font-bold text-slate-800">Allowed Work Modes</label>
-                        <button
-                          type="button"
-                          onClick={() => setPrefForm({ ...prefForm, work_modes: ['remote', 'hybrid'] })}
-                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 cursor-pointer"
-                        >
-                          ⚡ Both (Remote & Hybrid)
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {['remote', 'hybrid', 'onsite'].map((mode) => (
-                          <label
-                            key={mode}
-                            onClick={() => handleToggleWorkMode(mode)}
-                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider cursor-pointer transition-all ${
-                              prefForm.work_modes.includes(mode)
-                                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs font-bold'
-                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
-                            }`}
-                          >
-                            {mode === 'remote' ? '🌐 Remote' : mode === 'hybrid' ? '🏢 Hybrid' : '📍 Onsite'}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 3. Target Search Locations with Kerala Hubs & Live Search */}
-                    <div className="space-y-2.5 text-xs pt-2 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <label className="font-bold text-slate-800">Target Search Locations ({prefForm.target_countries.length})</label>
-                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                            Required *
-                          </span>
-                        </div>
-                        <span className="text-slate-400 text-[11px]">Type below to filter locations</span>
-                      </div>
-
-                      {/* Selected Locations Badges */}
-                      <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        {prefForm.target_countries.map((loc) => (
-                          <span
-                            key={loc}
-                            className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
-                          >
-                            <span>{loc}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLocation(loc)}
-                              className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Location Input with Type Search */}
-                      <form onSubmit={handleAddLocation} className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            value={newLocationInput}
-                            onChange={(e) => setNewLocationInput(e.target.value)}
-                            placeholder="Type keyword to filter locations (e.g. Kerala, Kochi, Bangalore, Remote)..."
-                            className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
-                          />
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                        </div>
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add</span>
-                        </button>
-                      </form>
-
-                      {/* Master Locations Dynamic Suggestion Pills */}
-                      <div className="pt-1 space-y-1.5">
-                        <span className="text-[11px] text-slate-500 font-semibold block">
-                          {newLocationInput.trim() ? `Matching Locations for "${newLocationInput}":` : 'Popular IT & Kerala Locations (Click to add):'}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
-                          {LOCATIONS_MASTER
-                            .filter((loc) => {
-                              const matchSearch = newLocationInput.trim()
-                                ? loc.toLowerCase().includes(newLocationInput.toLowerCase().trim())
-                                : true;
-                              const notAdded = !prefForm.target_countries.some((l) => l.toLowerCase() === loc.toLowerCase());
-                              return matchSearch && notAdded;
-                            })
-                            .slice(0, newLocationInput.trim() ? 15 : 8)
-                            .map((loc) => (
-                              <button
-                                key={loc}
-                                type="button"
-                                onClick={() => handleSelectLocationOption(loc)}
-                                className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
-                              >
-                                <Plus className="w-3 h-3 text-slate-400" />
-                                <span>{loc}</span>
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 4. Expected Salary / Average LPA */}
-                    <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
-                      <label className="font-bold text-slate-800">Expected Salary / Average LPA</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <span className="text-[11px] text-slate-400 block mb-1">Minimum (LPA / INR)</span>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="e.g. 6"
-                            value={prefForm.min_salary || ''}
-                            onChange={(e) => setPrefForm({ ...prefForm, min_salary: e.target.value })}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
-                          />
-                        </div>
-                        <div>
-                          <span className="text-[11px] text-slate-400 block mb-1">Target / Average (LPA)</span>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="e.g. 12"
-                            value={prefForm.max_salary || ''}
-                            onChange={(e) => setPrefForm({ ...prefForm, max_salary: e.target.value })}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
-                          />
-                        </div>
-                      </div>
-                      <span className="text-[11px] text-slate-400 block">
-                        Target package range: {prefForm.min_salary || 6} – {prefForm.max_salary || 15} LPA ({prefForm.currency || 'INR'})
-                      </span>
-                    </div>
-
-                    {/* 5. Minimum Match Score Threshold */}
-                    <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <label className="font-bold text-slate-800">Minimum Match Score Threshold</label>
-                        <span className="font-black text-emerald-600 text-sm">{prefForm.min_match_score}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="50"
-                        max="90"
-                        value={prefForm.min_match_score}
-                        onChange={(e) => setPrefForm({ ...prefForm, min_match_score: Number(e.target.value) })}
-                        className="w-full accent-emerald-600 cursor-pointer"
-                      />
-                      <span className="text-[11px] text-slate-400 block">
-                        Jobs matching {prefForm.min_match_score}% or higher will be prioritized.
-                      </span>
-                    </div>
-                  </div>
-                )}
 
                 {/* SUB-SECTION 4: Technical Skills */}
                 {profileSection === 'skills' && (
@@ -2382,52 +2149,390 @@ export default function App() {
         {/* ============================================================== */}
         {/* TAB 5: AGENT CONTROL & LOGS */}
         {/* ============================================================== */}
+        {/* ============================================================== */}
+        {/* TAB 5: AGENT SEARCH SETTINGS & CONTROLS */}
+        {/* ============================================================== */}
         {activeTab === 'agent' && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Agent Execution Controls & Audit Logs</h2>
-                <p className="text-xs text-slate-500">Lifecycle state machine controls with real-time audit stream.</p>
+          <div className="space-y-6">
+            {/* Search Configuration Hub */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-emerald-600" />
+                    <span>Agent Search Settings</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Configure target roles, locations, work modes, date freshness, and match score threshold. Runs strictly on-demand (Max 10 jobs per cycle).
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleSavePreferences()}
+                    disabled={savingProfile || isRunning}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer border border-slate-200"
+                  >
+                    {savingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    <span>Save Settings</span>
+                  </button>
+                  <button
+                    onClick={handleSaveAndTriggerAgent}
+                    disabled={isRunning}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  >
+                    {isRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+                    <span>{isRunning ? 'Processing 10 Jobs...' : 'Start Cycle (Discover & Score 10 Jobs)'}</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleTriggerAgent}
-                  disabled={isRunning}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer"
-                >
-                  {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-white" />}
-                  <span>{isRunning ? 'Processing 10 Jobs...' : 'Start Cycle (Max 10 Jobs)'}</span>
-                </button>
-                <button
-                  onClick={() => handleAgentControl('pause')}
-                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-lg flex items-center gap-1 cursor-pointer"
-                >
-                  <Pause className="w-3.5 h-3.5" />
-                  <span>Pause</span>
-                </button>
-                <button
-                  onClick={() => handleAgentControl('stop')}
-                  className="px-3 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-medium text-xs rounded-lg flex items-center gap-1 cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5" />
-                  <span>Stop</span>
-                </button>
+
+              {/* Validation Warning Alert if required fields are missing */}
+              {(!prefForm.target_roles.length || !prefForm.target_countries.length || !prefForm.work_modes.length) && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Configuration Required:</strong> Target Roles, Target Locations, and Allowed Work Modes must all be configured before starting the Agent cycle.
+                  </span>
+                </div>
+              )}
+
+              {/* 1. Target Roles with Master IT Options & Live Search */}
+              <div className="space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-800">Target Roles ({prefForm.target_roles.length})</label>
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      Required *
+                    </span>
+                  </div>
+                  <span className="text-slate-400 text-[11px]">Type below to filter IT roles</span>
+                </div>
+
+                {/* Selected Roles Badges */}
+                <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  {prefForm.target_roles.map((role) => (
+                    <span
+                      key={role}
+                      className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <span>{role}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRole(role)}
+                        className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                {/* Role Input with Type Search */}
+                <form onSubmit={handleAddRole} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={newRoleInput}
+                      onChange={(e) => setNewRoleInput(e.target.value)}
+                      placeholder="Type keyword to filter IT roles (e.g. Python, Full Stack, DevOps)..."
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </button>
+                </form>
+
+                {/* Master IT Roles Dynamic Suggestion Pills */}
+                <div className="pt-1 space-y-1.5">
+                  <span className="text-[11px] text-slate-500 font-semibold block">
+                    {newRoleInput.trim() ? `Matching Roles for "${newRoleInput}":` : 'Popular IT Roles (Click to add):'}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+                    {IT_ROLES_MASTER
+                      .filter((r) => {
+                        const matchSearch = newRoleInput.trim()
+                          ? r.toLowerCase().includes(newRoleInput.toLowerCase().trim())
+                          : true;
+                        const notAdded = !prefForm.target_roles.some((tr) => tr.toLowerCase() === r.toLowerCase());
+                        return matchSearch && notAdded;
+                      })
+                      .slice(0, newRoleInput.trim() ? 15 : 8)
+                      .map((role) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => handleSelectRoleOption(role)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3 text-slate-400" />
+                          <span>{role}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Allowed Work Modes */}
+              <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-800">Allowed Work Modes</label>
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      Required *
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPrefForm({ ...prefForm, work_modes: ['remote', 'hybrid'] })}
+                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 cursor-pointer"
+                  >
+                    ⚡ Both (Remote & Hybrid)
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {['remote', 'hybrid', 'onsite'].map((mode) => (
+                    <label
+                      key={mode}
+                      onClick={() => handleToggleWorkMode(mode)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider cursor-pointer transition-all ${
+                        prefForm.work_modes.includes(mode)
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs font-bold'
+                          : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      {mode === 'remote' ? '🌐 Remote' : mode === 'hybrid' ? '🏢 Hybrid' : '📍 Onsite'}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Target Search Locations with Kerala Hubs & Live Search */}
+              <div className="space-y-2.5 text-xs pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-800">Target Search Locations ({prefForm.target_countries.length})</label>
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      Required *
+                    </span>
+                  </div>
+                  <span className="text-slate-400 text-[11px]">Type below to filter locations</span>
+                </div>
+
+                {/* Selected Locations Badges */}
+                <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  {prefForm.target_countries.map((loc) => (
+                    <span
+                      key={loc}
+                      className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <span>{loc}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLocation(loc)}
+                        className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                {/* Location Input with Type Search */}
+                <form onSubmit={handleAddLocation} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={newLocationInput}
+                      onChange={(e) => setNewLocationInput(e.target.value)}
+                      placeholder="Type keyword to filter locations (e.g. Kerala, Kochi, Bangalore, Remote)..."
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </button>
+                </form>
+
+                {/* Master Locations Dynamic Suggestion Pills */}
+                <div className="pt-1 space-y-1.5">
+                  <span className="text-[11px] text-slate-500 font-semibold block">
+                    {newLocationInput.trim() ? `Matching Locations for "${newLocationInput}":` : 'Popular IT & Kerala Locations (Click to add):'}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+                    {LOCATIONS_MASTER
+                      .filter((loc) => {
+                        const matchSearch = newLocationInput.trim()
+                          ? loc.toLowerCase().includes(newLocationInput.toLowerCase().trim())
+                          : true;
+                        const notAdded = !prefForm.target_countries.some((l) => l.toLowerCase() === loc.toLowerCase());
+                        return matchSearch && notAdded;
+                      })
+                      .slice(0, newLocationInput.trim() ? 15 : 8)
+                      .map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => handleSelectLocationOption(loc)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3 text-slate-400" />
+                          <span>{loc}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Date Posted Freshness Filter */}
+              <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-800">Date Posted Filter</label>
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      Required *
+                    </span>
+                  </div>
+                  <span className="text-slate-400 text-[11px]">Filters out jobs posted earlier than selected threshold</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {[
+                    { days: 1, label: 'Today (within 24h)' },
+                    { days: 3, label: 'Past 3 Days' },
+                    { days: 7, label: 'Past 7 Days' },
+                    { days: 30, label: 'Past 30 Days' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.days}
+                      type="button"
+                      onClick={() => setPrefForm({ ...prefForm, posted_within_days: opt.days })}
+                      className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        prefForm.posted_within_days === opt.days
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs font-bold'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 5. Expected Salary / Average LPA */}
+              <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <label className="font-bold text-slate-800">Expected Salary / Average LPA</label>
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                    Required *
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Minimum (LPA / INR)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 6"
+                      value={prefForm.min_salary || ''}
+                      onChange={(e) => setPrefForm({ ...prefForm, min_salary: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Target / Average (LPA)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 12"
+                      value={prefForm.max_salary || ''}
+                      onChange={(e) => setPrefForm({ ...prefForm, max_salary: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  Target package range: {prefForm.min_salary || 6} – {prefForm.max_salary || 15} LPA ({prefForm.currency || 'INR'})
+                </span>
+              </div>
+
+              {/* 6. Minimum Match Score Threshold */}
+              <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-800">Minimum Match Score Threshold</label>
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      Required *
+                    </span>
+                  </div>
+                  <span className="font-black text-emerald-600 text-sm">{prefForm.min_match_score}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="90"
+                  value={prefForm.min_match_score}
+                  onChange={(e) => setPrefForm({ ...prefForm, min_match_score: Number(e.target.value) })}
+                  className="w-full accent-emerald-600 cursor-pointer"
+                />
+                <span className="text-[11px] text-slate-400 block">
+                  Only jobs matching {prefForm.min_match_score}% or higher will be qualified and recommended.
+                </span>
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
-                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Audit Log Stream</span>
+            {/* Run Outcome Notification Banner */}
+            {!isRunning && activeRun?.status === 'COMPLETED' && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div className="text-xs text-emerald-900">
+                    <strong className="block text-slate-900">Last Agent Cycle Finished Successfully!</strong>
+                    <span>Discovered and scored matching jobs strictly based on your configured search settings.</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('jobs')}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer shrink-0"
+                >
+                  <span>View All in Discovered Jobs Feed</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Audit Log Stream (Inline Real-Time Terminal) */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Live Execution Audit Stream</span>
+                  {isRunning && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                      Active Run In-Progress
+                    </span>
+                  )}
+                </div>
                 <button onClick={() => fetchRunsAndLogs()} className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer">
                   <RefreshCw className="w-3 h-3" />
-                  <span>Refresh</span>
+                  <span>Refresh Logs</span>
                 </button>
               </div>
 
-              <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
                 {agentLogs.length > 0 ? (
                   agentLogs.map((log) => (
-                    <div key={log.id} className="p-3.5 text-xs flex items-center justify-between font-mono">
+                    <div key={log.id} className="p-3 text-xs flex items-center justify-between font-mono hover:bg-slate-50">
                       <div className="flex items-center space-x-3">
                         <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase text-[10px]">
                           {log.stage}
@@ -2441,7 +2546,7 @@ export default function App() {
                   ))
                 ) : (
                   <div className="text-center py-10 text-slate-400 text-xs font-mono">
-                    No audit events yet. Click "Start Cycle" to run the agent daemon.
+                    No audit events yet. Click "Start Cycle (Discover & Score 10 Jobs)" above to execute.
                   </div>
                 )}
               </div>
@@ -2625,210 +2730,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* AGENT LIVE WORKING PREVIEW MODAL */}
-      {/* ============================================================== */}
-      {showAgentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-emerald-50/70 to-slate-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30">
-                  <Bot className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900">
-                      Autonomous Agent Live Execution Preview
-                    </h3>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
-                      agentStep < 3 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      {agentStep < 3 ? (
-                        <>
-                          <RefreshCw className="w-3 h-3 animate-spin text-amber-700" />
-                          <span>Working...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-700" />
-                          <span>Finished</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    User-triggered execution cycle • Max 10 jobs processed
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowAgentModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-white/80 transition-all cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-5 flex-1">
-              {/* Stepper Pipeline */}
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { step: 1, label: '1. Discovery', desc: 'Scan 10 Jobs' },
-                  { step: 2, label: '2. Decision Match', desc: 'Weighted Fit' },
-                  { step: 3, label: '3. Direct Apply', desc: 'Original Links' },
-                ].map((s) => {
-                  const isDone = agentStep > s.step || (agentStep === 3 && s.step === 3);
-                  const isCurrent = agentStep === s.step && agentStep !== 3;
-                  return (
-                    <div
-                      key={s.step}
-                      className={`p-3 rounded-2xl border text-center transition-all ${
-                        isDone
-                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
-                          : isCurrent
-                          ? 'bg-amber-50/80 border-amber-300 text-amber-900 ring-2 ring-amber-400/20'
-                          : 'bg-slate-50 border-slate-100 text-slate-400'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center gap-1.5 text-xs font-bold mb-0.5">
-                        {isDone ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : isCurrent ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                        ) : (
-                          <div className="w-3.5 h-3.5 rounded-full border border-slate-300" />
-                        )}
-                        <span>{s.label}</span>
-                      </div>
-                      <span className="text-[10px] block opacity-80">{s.desc}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Live Status Log Terminal Box */}
-              <div className="bg-slate-900 rounded-2xl p-4 text-xs font-mono text-emerald-400 space-y-1.5 shadow-inner">
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-slate-800">
-                  <span className="uppercase tracking-wider">Live Agent Execution Stream</span>
-                  <span className="text-emerald-500">● Interactive</span>
-                </div>
-                <div className="space-y-1 pt-1 max-h-32 overflow-y-auto">
-                  {agentStepLogs.map((log, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <span className="text-slate-500">›</span>
-                      <span className="text-slate-200">{log}</span>
-                    </div>
-                  ))}
-                  {agentStep < 3 && (
-                    <div className="flex items-center gap-2 text-amber-400 animate-pulse pt-1">
-                      <span className="text-amber-500">›</span>
-                      <span>Processing next task...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Scored Jobs Working Preview */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    {agentStep === 3 ? 'Top Scored Jobs for Your Profile' : 'Evaluating Jobs in Feed...'}
-                  </h4>
-                  <span className="text-[11px] text-slate-500">Direct employer career links</span>
-                </div>
-
-                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                  {jobs && jobs.length > 0 ? (
-                    jobs.slice(0, 5).map((job) => {
-                      const match = matches.find((m) => m.job_id === job.id);
-                      const score = job.match_score || (match ? match.overall_score : null);
-
-                      return (
-                        <div
-                          key={job.id}
-                          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-emerald-200 hover:shadow-xs transition-all flex items-center justify-between gap-3 text-xs"
-                        >
-                          <div className="space-y-0.5 flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h5 className="font-bold text-slate-900 truncate">{job.title}</h5>
-                              {job.is_remote && (
-                                <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200 shrink-0">
-                                  Remote
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 flex items-center gap-2 truncate">
-                              <span className="font-semibold text-slate-700">{job.company_name}</span>
-                              <span>•</span>
-                              <span>{job.location || 'Remote'}</span>
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="text-right">
-                              <span className="text-sm font-black text-emerald-600 block">
-                                {score ? `${Math.round(score)}%` : 'New'}
-                              </span>
-                              <span className="text-[10px] text-slate-400">Match Fit</span>
-                            </div>
-
-                            <a
-                              href={job.application_url || job.canonical_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg inline-flex items-center gap-1 shadow-2xs"
-                              title="Open original job posting"
-                            >
-                              <span>Apply ↗</span>
-                            </a>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-6 text-slate-400 text-xs">
-                      {agentStep < 3 ? 'Agent evaluating first batch of jobs...' : 'No jobs discovered.'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
-                {agentStep === 3
-                  ? 'All jobs scored and ordered by match fit.'
-                  : 'Cycle in progress. Starts only on button click.'}
-              </span>
-              <div className="flex items-center gap-2">
-                {agentStep === 3 ? (
-                  <button
-                    onClick={() => {
-                      setShowAgentModal(false);
-                      setActiveTab('jobs');
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
-                  >
-                    <span>View All in Discovered Jobs Feed</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowAgentModal(false)}
-                    className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl cursor-pointer"
-                  >
-                    Close Preview
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

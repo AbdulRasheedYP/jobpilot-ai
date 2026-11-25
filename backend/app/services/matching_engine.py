@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -60,13 +61,14 @@ def check_eligibility(
             return False, details, reasons
     else:
         # Check physical location against preferred countries / locations
-        candidate_locs = [l.lower() for l in (pref.target_countries or ["India"]) + (user.preferred_locations or [])]
-        job_loc_lower = job.location.lower()
-        if any(loc in job_loc_lower for loc in candidate_locs) or "remote" in candidate_locs:
+        candidate_locs = [l.strip().lower() for l in (pref.target_countries or ["India"]) + (user.preferred_locations or []) if l and l.strip()]
+        job_loc_lower = (job.location or "").lower()
+        if any(loc in job_loc_lower for loc in candidate_locs) or "remote" in candidate_locs or "all" in candidate_locs:
             details["work_mode"] = "PASS"
         else:
-            details["work_mode"] = "UNKNOWN"
-            reasons.append(f"Location '{job.location}' is outside preferred target areas.")
+            details["work_mode"] = "FAIL"
+            reasons.append(f"Location '{job.location}' does not match candidate target search locations ({', '.join(pref.target_countries or [])}).")
+            return False, details, reasons
 
     # 4. Work authorization check
     desc_lower = job.description.lower()
@@ -76,6 +78,21 @@ def check_eligibility(
         return False, details, reasons
     else:
         details["work_authorization"] = "PASS"
+
+    # 5. Date freshness check
+    freshness_days = getattr(pref, "posted_within_days", None)
+    if freshness_days and freshness_days > 0:
+        job_date = job.posted_at or job.created_at
+        if job_date:
+            now = datetime.now(timezone.utc)
+            if job_date.tzinfo is None:
+                job_date = job_date.replace(tzinfo=timezone.utc)
+            cutoff = now - timedelta(days=freshness_days)
+            if job_date < cutoff:
+                details["date_freshness"] = "FAIL"
+                reasons.append(f"Job posted on {job_date.strftime('%Y-%m-%d')} is older than the {freshness_days}-day search threshold.")
+                return False, details, reasons
+        details["date_freshness"] = "PASS"
 
     overall_passed = all(status != "FAIL" for status in details.values())
     return overall_passed, details, reasons

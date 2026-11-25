@@ -42,14 +42,26 @@ async def start_run(
     if not clean_roles:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Target Roles are required to start the agent cycle. Please add at least one target role in your Profile & CV Center.",
+            detail="Target Roles are required to start the agent cycle. Please add at least one target role in Agent Search Settings.",
         )
     
     clean_locations = [c.strip() for c in (pref.target_countries or []) if c and c.strip()]
     if not clean_locations:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Target Search Locations are required to start the agent cycle. Please add at least one location in your Profile & CV Center.",
+            detail="Target Search Locations are required to start the agent cycle. Please add at least one location in Agent Search Settings.",
+        )
+
+    if not pref.work_modes or not len(pref.work_modes):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Allowed Work Modes are required. Please select at least one work mode in Agent Search Settings.",
+        )
+
+    if pref.min_salary is None or pref.max_salary is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Expected Salary Range is required. Please set minimum and target LPA in Agent Search Settings.",
         )
 
     run_type = payload.run_type if payload and payload.run_type else "FULL_CYCLE"
