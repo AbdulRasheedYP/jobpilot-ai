@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from typing import Optional, List
 from backend.app.adapters.sources.base import JobSourceAdapter, JobPayload, normalize_url
@@ -74,13 +75,82 @@ class MockPortalAdapter(JobSourceAdapter):
                 posted_at=datetime.now(timezone.utc),
                 raw_payload={"mock": True, "id": "003"},
             ),
+            JobPayload(
+                external_id="mock-job-004",
+                title="RPA Developer (UiPath)",
+                company_name="Cognizant Automation Labs",
+                description="Seeking an RPA Developer skilled in UiPath Studio, Orchestrator queues, REFramework, Document Understanding, and Python scripting for banking workflow automations.",
+                location="Kochi, Kerala, India",
+                is_remote=True,
+                application_url="https://careers.cognizant.com/jobs/rpa-uipath-developer",
+                canonical_url=normalize_url("https://careers.cognizant.com/jobs/rpa-uipath-developer"),
+                employment_type="Full-time",
+                experience_level="junior",
+                salary_min=700000,
+                salary_max=1200000,
+                currency="INR",
+                skills_required=["UiPath Studio", "REFramework", "Orchestrator", "Document Understanding", "Python", "SQL"],
+                posted_at=datetime.now(timezone.utc),
+                raw_payload={"mock": True, "id": "004"},
+            ),
+            JobPayload(
+                external_id="mock-job-005",
+                title="RPA Developer (L3)",
+                company_name="ClaySys Technologies",
+                description="Looking for an experienced RPA Developer (L3) to design, build, and maintain end-to-end automations using UiPath REFramework, RPA Genie, VB.NET, and SQL. Experience with US financial services and credit union systems preferred.",
+                location="InfoPark, Kochi, India",
+                is_remote=True,
+                application_url="https://careers.claysys.com/jobs/rpa-developer-l3",
+                canonical_url=normalize_url("https://careers.claysys.com/jobs/rpa-developer-l3"),
+                employment_type="Full-time",
+                experience_level="junior",
+                salary_min=800000,
+                salary_max=1500000,
+                currency="INR",
+                skills_required=["UiPath Studio", "REFramework", "Orchestrator", "RPA Genie", "VB.NET", "Python"],
+                posted_at=datetime.now(timezone.utc),
+                raw_payload={"mock": True, "id": "005"},
+            ),
+            JobPayload(
+                external_id="mock-job-006",
+                title="UiPath Automation Engineer",
+                company_name="Tata Consultancy Services",
+                description="Hiring UiPath Automation Engineer to automate high-volume business workflows using UiPath Studio, Orchestrator, REFramework, SQL, and Git.",
+                location="Bangalore, India",
+                is_remote=True,
+                application_url="https://careers.tcs.com/jobs/uipath-automation-engineer",
+                canonical_url=normalize_url("https://careers.tcs.com/jobs/uipath-automation-engineer"),
+                employment_type="Full-time",
+                experience_level="junior",
+                salary_min=650000,
+                salary_max=1100000,
+                currency="INR",
+                skills_required=["UiPath Studio", "REFramework", "Orchestrator", "SQL", "Git"],
+                posted_at=datetime.now(timezone.utc),
+                raw_payload={"mock": True, "id": "006"},
+            ),
         ]
 
-        term_lower = search_term.lower() if search_term else ""
+        term_raw = search_term.strip().lower() if search_term else ""
+        term_clean = re.sub(r"\(.*?\)|\[.*?\]", " ", term_raw).strip()
+        keywords = [k for k in re.split(r"[\s,]+", term_clean) if len(k) >= 2]
+
         filtered = []
         for job in mock_jobs:
-            if term_lower and (term_lower not in job.title.lower() and term_lower not in " ".join(job.skills_required).lower()):
-                continue
+            job_text = f"{job.title} {' '.join(job.skills_required)} {job.description}".lower()
+            if term_raw:
+                # Direct substring match
+                matches = (term_raw in job_text) or (term_clean and term_clean in job_text)
+                if not matches and keywords:
+                    # Match if specific tech keywords appear (e.g., 'rpa', 'uipath', 'python', 'react', 'java')
+                    key_tech = [k for k in keywords if k not in ("developer", "engineer", "specialist", "junior", "senior", "lead", "architect")]
+                    if key_tech:
+                        matches = any(k in job_text for k in key_tech)
+                    else:
+                        matches = any(k in job_text for k in keywords)
+                if not matches:
+                    continue
+
             if location and (location.lower() not in job.location.lower() and not job.is_remote):
                 continue
             filtered.append(job)

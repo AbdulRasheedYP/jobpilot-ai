@@ -49,7 +49,9 @@ class ArbeitnowAdapter(JobSourceAdapter):
                 data = response.json()
                 raw_items = data.get("data", [])
 
-                term_lower = search_term.lower() if search_term else ""
+                term_raw = search_term.strip().lower() if search_term else ""
+                term_clean = re.sub(r"\(.*?\)|\[.*?\]", " ", term_raw).strip()
+                keywords = [k for k in re.split(r"[\s,]+", term_clean) if len(k) >= 2]
 
                 for item in raw_items:
                     title = item.get("title", "")
@@ -62,8 +64,16 @@ class ArbeitnowAdapter(JobSourceAdapter):
 
                     # Filter by search term if provided
                     content_to_match = f"{title} {' '.join(tags)} {clean_desc}".lower()
-                    if term_lower and term_lower not in content_to_match:
-                        continue
+                    if term_raw:
+                        matches = (term_raw in content_to_match) or (term_clean and term_clean in content_to_match)
+                        if not matches and keywords:
+                            key_tech = [k for k in keywords if k not in ("developer", "engineer", "specialist")]
+                            if key_tech:
+                                matches = any(k in content_to_match for k in key_tech)
+                            else:
+                                matches = any(k in content_to_match for k in keywords)
+                        if not matches:
+                            continue
 
                     # Filter by location if provided
                     if location and location.lower() not in job_location.lower() and not is_remote:
