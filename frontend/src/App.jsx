@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { authFetch, performLogin } from './api/client';
+import { authFetch, performLogin, getAuthToken } from './api/client';
 import Navbar from './components/layout/Navbar';
 import Toast from './components/layout/Toast';
 import OverviewTab from './components/overview/OverviewTab';
@@ -106,7 +106,10 @@ export default function App() {
   // Initial Auth & Dashboard Sync
   useEffect(() => {
     const init = async () => {
-      const token = await performLogin();
+      let token = getAuthToken();
+      if (!token) {
+        token = await performLogin();
+      }
       if (token) {
         await Promise.all([
           fetchCurrentUser(),
@@ -162,6 +165,9 @@ export default function App() {
       if (res && res.ok) {
         const data = await res.json();
         setUser(data);
+        if (data.email) {
+          localStorage.setItem('jobpilot_email', data.email);
+        }
       }
     } catch (e) {
       console.error('Fetch user error:', e);
@@ -259,6 +265,9 @@ export default function App() {
       if (res && res.ok) {
         const data = await res.json();
         setProfile(data);
+        if (data.email) {
+          localStorage.setItem('jobpilot_email', data.email);
+        }
         setProfileForm({
           full_name: data.full_name || '',
           email: data.email || '',
@@ -356,6 +365,9 @@ export default function App() {
       });
 
       if (res && res.ok) {
+        if (profileForm.email) {
+          localStorage.setItem('jobpilot_email', profileForm.email);
+        }
         showToast('Profile updated successfully!', 'success');
         await fetchProfile();
       } else {

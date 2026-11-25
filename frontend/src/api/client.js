@@ -13,16 +13,18 @@ export const setAuthToken = (token) => {
   }
 };
 
-export const performLogin = async (email = 'candidate@jobpilot.ai', password = 'password123') => {
+export const performLogin = async (email = null, password = 'password123') => {
+  const loginEmail = email || localStorage.getItem('jobpilot_email') || 'candidate@jobpilot.ai';
   try {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: loginEmail, password }),
     });
     if (res.ok) {
       const data = await res.json();
       setAuthToken(data.access_token);
+      localStorage.setItem('jobpilot_email', loginEmail);
       return data.access_token;
     }
   } catch (err) {
