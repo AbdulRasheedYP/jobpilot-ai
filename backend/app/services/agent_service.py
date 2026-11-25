@@ -85,7 +85,11 @@ async def execute_agent_cycle(
 
             new_jobs = 0
             for src in sources:
+                if new_jobs >= 10:
+                    break
                 for term in search_terms:
+                    if new_jobs >= 10:
+                        break
                     try:
                         sync_res = await ingest_jobs_from_source(db=db, source=src, search_query=term)
                         new_jobs += sync_res.new_jobs
@@ -94,12 +98,12 @@ async def execute_agent_cycle(
 
             run.jobs_discovered = new_jobs
             db.commit()
-            log_event(db, run.id, "DISCOVERY", "DISCOVERY_COMPLETED", f"Discovered {new_jobs} new jobs.", {"new_jobs": new_jobs})
+            log_event(db, run.id, "DISCOVERY", "DISCOVERY_COMPLETED", f"Discovered {new_jobs} new jobs (limit 10).", {"new_jobs": new_jobs})
 
         # --- Stage 2: Matching & Decision Engine ---
         if run_type in ["MATCHING", "FULL_CYCLE"]:
-            log_event(db, run.id, "MATCHING", "MATCHING_STARTED", "Evaluating match scores and eligibility...")
-            evaluated, eligible, strong = batch_evaluate_jobs(db=db, user=user, limit=50)
+            log_event(db, run.id, "MATCHING", "MATCHING_STARTED", "Evaluating match scores and eligibility for candidate profile...")
+            evaluated, eligible, strong = batch_evaluate_jobs(db=db, user=user, limit=10, force_reevaluate=True)
             run.jobs_matched = evaluated
             db.commit()
             log_event(
