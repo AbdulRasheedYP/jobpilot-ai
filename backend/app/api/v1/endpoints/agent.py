@@ -65,6 +65,7 @@ async def start_run(
         )
 
     run_type = payload.run_type if payload and payload.run_type else "FULL_CYCLE"
+    cycle_limit = payload.limit if payload and payload.limit else 25
     run = agent_service.create_agent_run(db=db, user=current_user)
     
     # Execute cycle
@@ -73,6 +74,7 @@ async def start_run(
         run_id=run.id,
         user=current_user,
         run_type=run_type,
+        limit=cycle_limit,
     )
 
 

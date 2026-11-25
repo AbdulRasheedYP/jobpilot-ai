@@ -39,7 +39,7 @@ export default function Navbar({ activeTab, setActiveTab, isRunning }) {
             {isRunning && (
               <div className="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-800">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                <span className="font-semibold">Agent Running (10 Jobs)...</span>
+                <span className="font-semibold">Agent Running Cycle...</span>
               </div>
             )}
             <div className="flex items-center space-x-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full font-semibold">
@@ -50,26 +50,28 @@ export default function Navbar({ activeTab, setActiveTab, isRunning }) {
         </div>
       </header>
 
-      {/* Navigation Tabs Bar */}
-      <div className="flex border-b border-slate-200 space-x-8">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
-                active
-                  ? 'border-emerald-600 text-emerald-600 font-semibold'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      {/* Navigation Tabs Bar - Centered */}
+      <div className="bg-white border-b border-slate-200 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center items-center space-x-4 sm:space-x-8 overflow-x-auto">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 py-3 px-2 border-b-2 font-medium text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer ${
+                  active
+                    ? 'border-emerald-600 text-emerald-600 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </>
   );

@@ -16,7 +16,7 @@ async def test_get_and_update_preferences(async_client: AsyncClient, auth_header
     data = get_resp.json()
     assert "target_roles" in data
     assert data["auto_apply_enabled"] is False
-    assert data["min_match_score"] == 65
+    assert data["min_match_score"] == 70
 
     # 2. Update preferences
     update_data = {

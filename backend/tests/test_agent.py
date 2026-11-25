@@ -16,6 +16,20 @@ async def test_agent_dashboard_metrics(async_client: AsyncClient, auth_headers: 
 
 @pytest.mark.asyncio
 async def test_agent_full_cycle_run(async_client: AsyncClient, auth_headers: dict):
+    # Setup valid preferences first
+    await async_client.put(
+        "/api/v1/preferences",
+        headers=auth_headers,
+        json={
+            "target_roles": ["Software Engineer"],
+            "target_countries": ["India", "Remote"],
+            "work_modes": ["remote", "hybrid"],
+            "min_salary": 6,
+            "max_salary": 15,
+            "posted_within_days": 7,
+        },
+    )
+
     # 1. Start agent run
     run_resp = await async_client.post(
         "/api/v1/agent/run",

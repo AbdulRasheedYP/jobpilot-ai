@@ -34,6 +34,7 @@ class AgentRunResponse(BaseModel):
 
 class AgentRunCreate(BaseModel):
     run_type: Optional[str] = "FULL_CYCLE"  # 'DISCOVERY' | 'MATCHING' | 'APPLY' | 'FULL_CYCLE'
+    limit: Optional[int] = Field(default=25, ge=1, le=100)
 
 
 class AgentRunListResponse(BaseModel):

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sliders,
   RefreshCw,
@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ChevronRight,
 } from 'lucide-react';
+
 export default function AgentSettingsTab({
   metaOptions,
   prefForm,
@@ -36,6 +37,72 @@ export default function AgentSettingsTab({
   setNewLocationInput,
   handleToggleWorkMode,
 }) {
+  const [validationErrors, setValidationErrors] = useState({});
+
+  const validateForm = () => {
+    const errs = {};
+    const roles = (prefForm.target_roles || []).filter((r) => r && r.trim());
+    if (roles.length === 0) {
+      errs.target_roles = 'Please add at least one Target Role.';
+    }
+    if (!prefForm.work_modes || prefForm.work_modes.length === 0) {
+      errs.work_modes = 'Please select at least one Work Mode (Remote, Hybrid, or Onsite).';
+    }
+    const locs = (prefForm.target_countries || []).filter((l) => l && l.trim());
+    if (locs.length === 0) {
+      errs.target_countries = 'Please add at least one Target Search Location.';
+    }
+    if (!prefForm.posted_within_days) {
+      errs.posted_within_days = 'Please select a Date Posted filter.';
+    }
+    if (prefForm.min_salary === '' || prefForm.min_salary === null || Number(prefForm.min_salary) <= 0) {
+      errs.min_salary = 'Please enter a valid minimum package (LPA).';
+    }
+    if (prefForm.max_salary === '' || prefForm.max_salary === null || Number(prefForm.max_salary) <= 0) {
+      errs.max_salary = 'Please enter target package (LPA).';
+    } else if (Number(prefForm.max_salary) < Number(prefForm.min_salary)) {
+      errs.max_salary = 'Target package cannot be lower than minimum package.';
+    }
+
+    setValidationErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const onSave = () => {
+    if (!validateForm()) return;
+    handleSavePreferences();
+  };
+
+  const onStartCycle = () => {
+    if (!validateForm()) return;
+    handleSaveAndTriggerAgent();
+  };
+
+  const handleAddRoleWithClear = (e) => {
+    handleAddRole(e);
+    setValidationErrors((prev) => ({ ...prev, target_roles: null }));
+  };
+
+  const handleSelectRoleOptionWithClear = (role) => {
+    handleSelectRoleOption(role);
+    setValidationErrors((prev) => ({ ...prev, target_roles: null }));
+  };
+
+  const handleToggleWorkModeWithClear = (mode) => {
+    handleToggleWorkMode(mode);
+    setValidationErrors((prev) => ({ ...prev, work_modes: null }));
+  };
+
+  const handleAddLocationWithClear = (e) => {
+    handleAddLocation(e);
+    setValidationErrors((prev) => ({ ...prev, target_countries: null }));
+  };
+
+  const handleSelectLocationOptionWithClear = (loc) => {
+    handleSelectLocationOption(loc);
+    setValidationErrors((prev) => ({ ...prev, target_countries: null }));
+  };
+
   return (
     <div className="space-y-6">
       {/* Search Configuration Hub */}
@@ -47,12 +114,12 @@ export default function AgentSettingsTab({
               <span>Agent Search Settings</span>
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Configure target roles, locations, work modes, date freshness, and match score threshold. Runs strictly on-demand (Max 10 jobs per cycle).
+              Configure target roles, locations, work modes, date freshness, and match score threshold. Runs autonomous discovery and scoring cycle.
             </p>
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => handleSavePreferences()}
+              onClick={onSave}
               disabled={savingProfile || isRunning}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer border border-slate-200"
             >
@@ -60,41 +127,32 @@ export default function AgentSettingsTab({
               <span>Save Settings</span>
             </button>
             <button
-              onClick={handleSaveAndTriggerAgent}
+              onClick={onStartCycle}
               disabled={isRunning}
               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
             >
               {isRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
-              <span>{isRunning ? 'Processing 10 Jobs...' : 'Start Cycle (Discover & Score 10 Jobs)'}</span>
+              <span>{isRunning ? 'Discovering & Scoring Jobs...' : 'Start Agent Cycle'}</span>
             </button>
           </div>
         </div>
 
-        {/* Validation Warning Alert if required fields are missing */}
-        {(!prefForm.target_roles.length || !prefForm.target_countries.length || !prefForm.work_modes.length) && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              <strong>Configuration Required:</strong> Target Roles, Target Locations, and Allowed Work Modes must all be configured before starting the Agent cycle.
-            </span>
-          </div>
-        )}
-
         {/* 1. Target Roles with Master IT Options & Live Search */}
         <div className="space-y-2.5 text-xs">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-800">Target Roles ({prefForm.target_roles.length})</label>
-              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                Required *
-              </span>
-            </div>
+            <label className="font-bold text-slate-800">Target Roles ({prefForm.target_roles.length})</label>
             <span className="text-slate-400 text-[11px]">Type below to filter IT roles</span>
           </div>
 
           {/* Selected Roles Badges */}
-          <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-slate-50 rounded-xl border border-slate-200">
-            {prefForm.target_roles.map((role) => (
+          <div
+            className={`flex flex-wrap gap-1.5 min-h-[36px] p-2 rounded-xl border transition-all ${
+              validationErrors.target_roles
+                ? 'border-rose-400 bg-rose-50/20 shadow-xs'
+                : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            {(prefForm.target_roles || []).map((role) => (
               <span
                 key={role}
                 className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
@@ -111,13 +169,25 @@ export default function AgentSettingsTab({
             ))}
           </div>
 
+          {validationErrors.target_roles && (
+            <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{validationErrors.target_roles}</span>
+            </p>
+          )}
+
           {/* Role Input with Type Search */}
-          <form onSubmit={handleAddRole} className="flex gap-2">
+          <form onSubmit={handleAddRoleWithClear} className="flex gap-2">
             <div className="relative flex-1">
               <input
                 type="text"
                 value={newRoleInput}
-                onChange={(e) => setNewRoleInput(e.target.value)}
+                onChange={(e) => {
+                  setNewRoleInput(e.target.value);
+                  if (validationErrors.target_roles) {
+                    setValidationErrors((prev) => ({ ...prev, target_roles: null }));
+                  }
+                }}
                 placeholder="Type keyword to filter IT roles (e.g. Python, Full Stack, DevOps)..."
                 className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
               />
@@ -143,7 +213,7 @@ export default function AgentSettingsTab({
                   const matchSearch = newRoleInput.trim()
                     ? r.toLowerCase().includes(newRoleInput.toLowerCase().trim())
                     : true;
-                  const notAdded = !prefForm.target_roles.some((tr) => tr.toLowerCase() === r.toLowerCase());
+                  const notAdded = !(prefForm.target_roles || []).some((tr) => tr.toLowerCase() === r.toLowerCase());
                   return matchSearch && notAdded;
                 })
                 .slice(0, newRoleInput.trim() ? 15 : 8)
@@ -151,7 +221,7 @@ export default function AgentSettingsTab({
                   <button
                     key={role}
                     type="button"
-                    onClick={() => handleSelectRoleOption(role)}
+                    onClick={() => handleSelectRoleOptionWithClear(role)}
                     className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
                   >
                     <Plus className="w-3 h-3 text-slate-400" />
@@ -165,27 +235,29 @@ export default function AgentSettingsTab({
         {/* 2. Allowed Work Modes */}
         <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-800">Allowed Work Modes</label>
-              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                Required *
-              </span>
-            </div>
+            <label className="font-bold text-slate-800">Allowed Work Modes</label>
             <button
               type="button"
-              onClick={() => setPrefForm({ ...prefForm, work_modes: ['remote', 'hybrid'] })}
+              onClick={() => {
+                setPrefForm({ ...prefForm, work_modes: ['remote', 'hybrid'] });
+                setValidationErrors((prev) => ({ ...prev, work_modes: null }));
+              }}
               className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 cursor-pointer"
             >
               ⚡ Both (Remote & Hybrid)
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div
+            className={`flex flex-wrap items-center gap-2 p-1.5 rounded-xl border transition-all ${
+              validationErrors.work_modes ? 'border-rose-400 bg-rose-50/20' : 'border-transparent'
+            }`}
+          >
             {(metaOptions?.work_modes || ['remote', 'hybrid', 'onsite']).map((mode) => (
               <label
                 key={mode}
-                onClick={() => handleToggleWorkMode(mode)}
+                onClick={() => handleToggleWorkModeWithClear(mode)}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider cursor-pointer transition-all ${
-                  prefForm.work_modes.includes(mode)
+                  (prefForm.work_modes || []).includes(mode)
                     ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs font-bold'
                     : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
                 }`}
@@ -194,23 +266,30 @@ export default function AgentSettingsTab({
               </label>
             ))}
           </div>
+          {validationErrors.work_modes && (
+            <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{validationErrors.work_modes}</span>
+            </p>
+          )}
         </div>
 
         {/* 3. Target Search Locations with Kerala Hubs & Live Search */}
         <div className="space-y-2.5 text-xs pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-800">Target Search Locations ({prefForm.target_countries.length})</label>
-              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                Required *
-              </span>
-            </div>
+            <label className="font-bold text-slate-800">Target Search Locations ({(prefForm.target_countries || []).length})</label>
             <span className="text-slate-400 text-[11px]">Type below to filter locations</span>
           </div>
 
           {/* Selected Locations Badges */}
-          <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-slate-50 rounded-xl border border-slate-200">
-            {prefForm.target_countries.map((loc) => (
+          <div
+            className={`flex flex-wrap gap-1.5 min-h-[36px] p-2 rounded-xl border transition-all ${
+              validationErrors.target_countries
+                ? 'border-rose-400 bg-rose-50/20 shadow-xs'
+                : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            {(prefForm.target_countries || []).map((loc) => (
               <span
                 key={loc}
                 className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
@@ -227,13 +306,25 @@ export default function AgentSettingsTab({
             ))}
           </div>
 
+          {validationErrors.target_countries && (
+            <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{validationErrors.target_countries}</span>
+            </p>
+          )}
+
           {/* Location Input with Type Search */}
-          <form onSubmit={handleAddLocation} className="flex gap-2">
+          <form onSubmit={handleAddLocationWithClear} className="flex gap-2">
             <div className="relative flex-1">
               <input
                 type="text"
                 value={newLocationInput}
-                onChange={(e) => setNewLocationInput(e.target.value)}
+                onChange={(e) => {
+                  setNewLocationInput(e.target.value);
+                  if (validationErrors.target_countries) {
+                    setValidationErrors((prev) => ({ ...prev, target_countries: null }));
+                  }
+                }}
                 placeholder="Type keyword to filter locations (e.g. Kerala, Kochi, Bangalore, Remote)..."
                 className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
               />
@@ -259,7 +350,7 @@ export default function AgentSettingsTab({
                   const matchSearch = newLocationInput.trim()
                     ? loc.toLowerCase().includes(newLocationInput.toLowerCase().trim())
                     : true;
-                  const notAdded = !prefForm.target_countries.some((l) => l.toLowerCase() === loc.toLowerCase());
+                  const notAdded = !(prefForm.target_countries || []).some((l) => l.toLowerCase() === loc.toLowerCase());
                   return matchSearch && notAdded;
                 })
                 .slice(0, newLocationInput.trim() ? 15 : 8)
@@ -267,7 +358,7 @@ export default function AgentSettingsTab({
                   <button
                     key={loc}
                     type="button"
-                    onClick={() => handleSelectLocationOption(loc)}
+                    onClick={() => handleSelectLocationOptionWithClear(loc)}
                     className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
                   >
                     <Plus className="w-3 h-3 text-slate-400" />
@@ -281,15 +372,14 @@ export default function AgentSettingsTab({
         {/* 4. Date Posted Freshness Filter */}
         <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-800">Date Posted Filter</label>
-              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                Required *
-              </span>
-            </div>
+            <label className="font-bold text-slate-800">Date Posted Filter</label>
             <span className="text-slate-400 text-[11px]">Filters out jobs posted earlier than selected threshold</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div
+            className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-1 rounded-xl border transition-all ${
+              validationErrors.posted_within_days ? 'border-rose-400 bg-rose-50/20' : 'border-transparent'
+            }`}
+          >
             {(metaOptions?.date_freshness?.length
               ? metaOptions.date_freshness
               : [
@@ -303,7 +393,10 @@ export default function AgentSettingsTab({
               <button
                 key={opt.days}
                 type="button"
-                onClick={() => setPrefForm({ ...prefForm, posted_within_days: opt.days })}
+                onClick={() => {
+                  setPrefForm({ ...prefForm, posted_within_days: opt.days });
+                  setValidationErrors((prev) => ({ ...prev, posted_within_days: null }));
+                }}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   prefForm.posted_within_days === opt.days
                     ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs font-bold'
@@ -315,16 +408,17 @@ export default function AgentSettingsTab({
               </button>
             ))}
           </div>
+          {validationErrors.posted_within_days && (
+            <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{validationErrors.posted_within_days}</span>
+            </p>
+          )}
         </div>
 
         {/* 5. Expected Salary / Average LPA */}
         <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-2">
-            <label className="font-bold text-slate-800">Expected Salary / Average LPA</label>
-            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-              Required *
-            </span>
-          </div>
+          <label className="font-bold text-slate-800">Expected Salary / Average LPA</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <span className="text-[11px] text-slate-400 block mb-1">Minimum (LPA / INR)</span>
@@ -333,8 +427,13 @@ export default function AgentSettingsTab({
                 min="1"
                 placeholder="e.g. 6"
                 value={prefForm.min_salary || ''}
-                onChange={(e) => setPrefForm({ ...prefForm, min_salary: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                onChange={(e) => {
+                  setPrefForm({ ...prefForm, min_salary: e.target.value });
+                  setValidationErrors((prev) => ({ ...prev, min_salary: null, max_salary: null }));
+                }}
+                className={`w-full px-3 py-2 border rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white transition-all ${
+                  validationErrors.min_salary ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50'
+                }`}
               />
             </div>
             <div>
@@ -344,11 +443,22 @@ export default function AgentSettingsTab({
                 min="1"
                 placeholder="e.g. 12"
                 value={prefForm.max_salary || ''}
-                onChange={(e) => setPrefForm({ ...prefForm, max_salary: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                onChange={(e) => {
+                  setPrefForm({ ...prefForm, max_salary: e.target.value });
+                  setValidationErrors((prev) => ({ ...prev, max_salary: null }));
+                }}
+                className={`w-full px-3 py-2 border rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white transition-all ${
+                  validationErrors.max_salary ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50'
+                }`}
               />
             </div>
           </div>
+          {(validationErrors.min_salary || validationErrors.max_salary) && (
+            <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{validationErrors.min_salary || validationErrors.max_salary}</span>
+            </p>
+          )}
           <span className="text-[11px] text-slate-400 block">
             Target package range: {prefForm.min_salary || 6} – {prefForm.max_salary || 15} LPA ({prefForm.currency || 'INR'})
           </span>
@@ -357,12 +467,7 @@ export default function AgentSettingsTab({
         {/* 6. Minimum Match Score Threshold */}
         <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-800">Minimum Match Score Threshold</label>
-              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                Required *
-              </span>
-            </div>
+            <label className="font-bold text-slate-800">Minimum Match Score Threshold</label>
             <span className="font-black text-emerald-600 text-sm">{prefForm.min_match_score}%</span>
           </div>
           <input

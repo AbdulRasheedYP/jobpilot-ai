@@ -64,11 +64,11 @@ export default function App() {
   const [prefForm, setPrefForm] = useState({
     target_roles: [],
     target_countries: [],
-    work_modes: ['remote', 'hybrid'],
-    min_match_score: 65,
-    posted_within_days: 7,
-    min_salary: 6,
-    max_salary: 15,
+    work_modes: [],
+    min_match_score: 70,
+    posted_within_days: null,
+    min_salary: '',
+    max_salary: '',
     currency: 'INR',
   });
 
@@ -284,11 +284,11 @@ export default function App() {
         setPrefForm({
           target_roles: data.target_roles || [],
           target_countries: data.target_countries || [],
-          work_modes: data.work_modes || ['remote', 'hybrid'],
-          min_match_score: data.min_match_score || 65,
-          posted_within_days: data.posted_within_days || 7,
-          min_salary: data.min_salary || 6,
-          max_salary: data.max_salary || 15,
+          work_modes: data.work_modes || [],
+          min_match_score: data.min_match_score != null ? data.min_match_score : 70,
+          posted_within_days: data.posted_within_days != null ? data.posted_within_days : null,
+          min_salary: data.min_salary != null ? data.min_salary : '',
+          max_salary: data.max_salary != null ? data.max_salary : '',
           currency: data.currency || 'INR',
         });
       }
@@ -394,11 +394,11 @@ export default function App() {
         body: JSON.stringify({
           target_roles: cleanRoles,
           target_countries: cleanLocations,
-          work_modes: prefForm.work_modes,
-          min_match_score: Number(prefForm.min_match_score) || 65,
-          posted_within_days: Number(prefForm.posted_within_days) || 7,
-          min_salary: Number(prefForm.min_salary) || 6,
-          max_salary: Number(prefForm.max_salary) || 15,
+          work_modes: prefForm.work_modes || [],
+          min_match_score: Number(prefForm.min_match_score) || 70,
+          posted_within_days: prefForm.posted_within_days != null ? Number(prefForm.posted_within_days) : null,
+          min_salary: prefForm.min_salary !== '' && prefForm.min_salary != null ? Number(prefForm.min_salary) : null,
+          max_salary: prefForm.max_salary !== '' && prefForm.max_salary != null ? Number(prefForm.max_salary) : null,
           currency: prefForm.currency || 'INR',
         }),
       });
@@ -427,7 +427,7 @@ export default function App() {
     try {
       const res = await authFetch('/agent/run', {
         method: 'POST',
-        body: JSON.stringify({ run_type: 'FULL_CYCLE' }),
+        body: JSON.stringify({ run_type: 'FULL_CYCLE', limit: 25 }),
       });
 
       const data = await res?.json().catch(() => ({}));

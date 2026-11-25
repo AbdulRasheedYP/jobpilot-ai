@@ -46,22 +46,22 @@ class JobPreference(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     target_roles: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: ["Python Developer", "Backend Developer"], nullable=False
+        JSONB, default=list, nullable=False
     )
     target_countries: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: ["India", "Remote"], nullable=False
+        JSONB, default=list, nullable=False
     )
     work_modes: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: ["remote", "hybrid", "onsite"], nullable=False
+        JSONB, default=list, nullable=False
     )
     experience_levels: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: ["fresher", "junior", "trainee"], nullable=False
+        JSONB, default=list, nullable=False
     )
     min_salary: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     max_salary: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
-    min_match_score: Mapped[int] = mapped_column(Integer, default=65, nullable=False)
-    posted_within_days: Mapped[Optional[int]] = mapped_column(Integer, default=7, nullable=True)
+    min_match_score: Mapped[int] = mapped_column(Integer, default=70, nullable=False)
+    posted_within_days: Mapped[Optional[int]] = mapped_column(Integer, default=None, nullable=True)
     auto_apply_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     daily_application_limit: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     weekly_application_limit: Mapped[int] = mapped_column(Integer, default=25, nullable=False)

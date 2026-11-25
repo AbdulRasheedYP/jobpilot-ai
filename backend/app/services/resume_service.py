@@ -80,22 +80,14 @@ async def save_and_parse_resume(
     if isinstance(parsed_facts.get("extracted_experience"), list):
         user.experience = parsed_facts["extracted_experience"]
 
-    # Also update or initialize JobPreference with inferred roles/locations
+    # Update or initialize JobPreference strictly with inferred target roles from CV heading
     from backend.app.services.preference_service import get_or_create_preferences
     pref = get_or_create_preferences(db=db, user_id=user.id)
     inferred_roles = parsed_facts.get("inferred_target_roles") or []
     if isinstance(inferred_roles, list) and inferred_roles:
         clean_roles = [r.strip() for r in inferred_roles if isinstance(r, str) and r.strip()]
-        default_roles = ["Python Developer", "Backend Developer"]
-        if clean_roles and (not pref.target_roles or pref.target_roles == default_roles):
+        if clean_roles:
             pref.target_roles = clean_roles
-    if parsed_facts.get("current_location") and isinstance(parsed_facts["current_location"], str):
-        loc = parsed_facts["current_location"].strip()
-        if loc:
-            curr_locs = list(pref.target_countries or [])
-            if loc not in curr_locs:
-                curr_locs.append(loc)
-                pref.target_countries = curr_locs
 
     # Create Resume DB record
     resume = Resume(

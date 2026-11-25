@@ -62,6 +62,7 @@ async def execute_agent_cycle(
     run_id: uuid.UUID,
     user: UserProfile,
     run_type: str = "FULL_CYCLE",
+    limit: Optional[int] = None,
 ) -> AgentRun:
     """
     Executes an end-to-end autonomous agent cycle:
@@ -106,19 +107,21 @@ async def execute_agent_cycle(
         log_event(db, run.id, "INIT", "RUN_FAILED", run.error_message)
         raise HTTPException(status_code=400, detail=run.error_message)
 
+    cycle_limit = limit or 25
+
     try:
         # --- Stage 1: Job Discovery ---
         if run_type in ["DISCOVERY", "FULL_CYCLE"]:
-            log_event(db, run.id, "DISCOVERY", "DISCOVERY_STARTED", "Scanning enabled job sources...")
+            log_event(db, run.id, "DISCOVERY", "DISCOVERY_STARTED", f"Scanning enabled job sources (target up to {cycle_limit} jobs)...")
             sources = db.query(JobSource).filter(JobSource.is_enabled == True).all()
             search_terms = clean_roles
 
             new_jobs = 0
             for src in sources:
-                if new_jobs >= 10:
+                if new_jobs >= cycle_limit:
                     break
                 for term in search_terms:
-                    if new_jobs >= 10:
+                    if new_jobs >= cycle_limit:
                         break
                     try:
                         sync_res = await ingest_jobs_from_source(
@@ -133,12 +136,12 @@ async def execute_agent_cycle(
 
             run.jobs_discovered = new_jobs
             db.commit()
-            log_event(db, run.id, "DISCOVERY", "DISCOVERY_COMPLETED", f"Discovered {new_jobs} new jobs (limit 10).", {"new_jobs": new_jobs})
+            log_event(db, run.id, "DISCOVERY", "DISCOVERY_COMPLETED", f"Discovered {new_jobs} new jobs matching target criteria.", {"new_jobs": new_jobs})
 
         # --- Stage 2: Matching & Decision Engine ---
         if run_type in ["MATCHING", "FULL_CYCLE"]:
             log_event(db, run.id, "MATCHING", "MATCHING_STARTED", "Evaluating match scores and eligibility for candidate profile...")
-            evaluated, eligible, strong = batch_evaluate_jobs(db=db, user=user, limit=10, force_reevaluate=True)
+            evaluated, eligible, strong = batch_evaluate_jobs(db=db, user=user, limit=max(cycle_limit * 2, 50), force_reevaluate=True)
             run.jobs_matched = evaluated
             db.commit()
             log_event(
@@ -158,7 +161,7 @@ async def execute_agent_cycle(
                     JobMatch.eligibility_passed == True,
                     JobMatch.overall_score >= pref.min_match_score,
                 )
-                .limit(10)
+                .limit(cycle_limit)
                 .all()
             )
 

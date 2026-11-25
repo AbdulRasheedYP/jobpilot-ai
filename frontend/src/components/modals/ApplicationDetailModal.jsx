@@ -140,7 +140,7 @@ export default function ApplicationDetailModal({
 
               <pre className="p-4 rounded-xl bg-white border border-slate-200 text-xs font-mono whitespace-pre-wrap text-slate-800 leading-relaxed shadow-inner max-h-96 overflow-y-auto">
                 {viewingApp.tailored_resume_text ||
-                  `Candidate Name: ${profile?.full_name || 'Candidate'}\nEmail: ${profile?.email}\nPhone: ${profile?.phone || 'Not provided'}\nAttached File: ${viewingApp.resume_file_name || (resumes && resumes[0]?.file_name) || 'arjun nair.pdf'}\n\nKEY VERIFIED SKILLS\n${profile?.skills?.join(', ') || 'Python, FastAPI, React'}\n\nSTATUS\nYour verified uploaded CV document will be transmitted directly with this application.`}
+                  `Candidate Name: ${profile?.full_name || 'Candidate'}\nEmail: ${profile?.email || 'N/A'}\nPhone: ${profile?.phone || 'Not provided'}\nAttached File: ${viewingApp.resume_file_name || (resumes && resumes[0]?.file_name) || 'Uploaded CV'}\n\nKEY VERIFIED SKILLS\n${profile?.skills?.length ? profile.skills.join(', ') : 'No skills recorded'}\n\nSTATUS\nYour verified uploaded CV document will be transmitted directly with this application.`}
               </pre>
             </div>
           )}
