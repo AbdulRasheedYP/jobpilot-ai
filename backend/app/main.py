@@ -1,3 +1,4 @@
+from typing import Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -99,21 +100,70 @@ app = FastAPI(
 )
 
 # Security Headers and CSRF Middleware
+import ipaddress
+from urllib.parse import urlparse
+
+
+def is_trusted_origin(origin: Optional[str], request_host: Optional[str] = None) -> bool:
+    """
+    Validates state-changing request Origin against allowed origins.
+    Permits localhost, loopback, configured CORS origins, and private LAN IPs in development.
+    """
+    if not origin:
+        return True
+
+    try:
+        parsed = urlparse(origin)
+        hostname = (parsed.hostname or "").lower()
+        if not hostname:
+            return False
+
+        # 1. Match against Host header (direct same-origin)
+        if request_host:
+            host_only = request_host.split(":")[0].lower()
+            if hostname == host_only:
+                return True
+
+        # 2. Check explicit allowed origins from settings
+        for ao in settings.ALLOWED_CORS_ORIGINS:
+            ao_parsed = urlparse(ao)
+            ao_host = (ao_parsed.hostname or "").lower()
+            if ao_host == hostname:
+                if not ao_parsed.port or ao_parsed.port == parsed.port:
+                    return True
+
+        # 3. Always allow localhost and loopback addresses on any port
+        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1", "testserver"):
+            return True
+
+        # 4. In development or test, allow private LAN IPs (192.168.*, 10.*, 172.16-31.*) and .local
+        if settings.DEBUG or settings.APP_ENV in ("development", "test"):
+            if hostname.endswith(".local"):
+                return True
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback:
+                    return True
+            except ValueError:
+                pass
+    except Exception:
+        return False
+
+    return False
+
+
 @app.middleware("http")
 async def security_and_csrf_headers_middleware(request: Request, call_next):
     # CSRF Origin validation for state-changing HTTP methods from browsers
     if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
         origin = request.headers.get("origin")
-        if origin:
-            allowed_origins = [
-                o.rstrip("/") for o in settings.ALLOWED_CORS_ORIGINS
-            ] + ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
-            if not any(origin.startswith(ao) for ao in allowed_origins):
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    content={"detail": "CSRF verification failed: Untrusted Origin"},
-                )
+        host = request.headers.get("host")
+        if origin and not is_trusted_origin(origin, host):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "CSRF verification failed: Untrusted Origin"},
+            )
 
     response: Response = await call_next(request)
     # Standard Defense-in-Depth Security Headers
@@ -128,6 +178,7 @@ async def security_and_csrf_headers_middleware(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

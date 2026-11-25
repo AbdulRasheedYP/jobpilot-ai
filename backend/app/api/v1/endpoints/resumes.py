@@ -15,6 +15,7 @@ router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
 
 @router.post("", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resume(
     file: UploadFile = File(...),
     current_user: UserProfile = Depends(get_current_user),

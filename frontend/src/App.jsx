@@ -323,7 +323,7 @@ export default function App() {
     formData.append('file', file);
 
     try {
-      const res = await authFetch('/resumes/upload', {
+      const res = await authFetch('/resumes', {
         method: 'POST',
         body: formData,
       });

@@ -70,6 +70,48 @@ async def test_csrf_trusted_origin_accepted(
 
 
 @pytest.mark.asyncio
+async def test_csrf_lan_origin_accepted(
+    async_client: AsyncClient,
+    auth_headers: dict,
+    test_user,
+    db_session,
+):
+    """Verify CSRF protection accepts requests from private LAN origins in development."""
+    source = JobSource(
+        id=uuid.uuid4(),
+        name="Arbeitnow",
+        code=f"src_{uuid.uuid4().hex[:6]}",
+        adapter_class="ArbeitnowAdapter",
+    )
+    db_session.add(source)
+    job = Job(
+        id=uuid.uuid4(),
+        source_id=source.id,
+        external_id=f"ext_{uuid.uuid4().hex[:8]}",
+        title="Full Stack Engineer",
+        company_name="LAN Corp",
+        description="Full stack dev role",
+        location="Remote",
+        is_remote=True,
+        skills_required=["Python"],
+        application_url="https://example.com/jobs/lan",
+        canonical_url="https://example.com/jobs/lan",
+        is_active=True,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    # Test LAN IP origin (e.g. 192.168.1.39:3000)
+    resp = await async_client.post(
+        "/api/v1/applications/mark-applied",
+        headers={**auth_headers, "Origin": "http://192.168.1.39:3000"},
+        json={"job_id": str(job.id)},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["status"] == ApplicationStatus.APPLIED_CONFIRMED.value
+
+
+@pytest.mark.asyncio
 async def test_jobs_ranking_descending_order(
     async_client: AsyncClient,
     auth_headers: dict,
