@@ -47,6 +47,7 @@ class MatchListResponse(BaseModel):
 class MatchEvaluateRequest(BaseModel):
     job_id: Optional[uuid.UUID] = None
     limit: int = 50
+    force_reevaluate: bool = False
 
 
 class MatchEvaluateResponse(BaseModel):

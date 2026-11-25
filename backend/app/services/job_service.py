@@ -225,13 +225,6 @@ def list_jobs(
     Filters by location, min_score, and date freshness strictly in SQL.
     """
     if user:
-        # Pre-evaluate unmatched jobs so scores are strictly up to date
-        try:
-            from backend.app.services.matching_engine import batch_evaluate_jobs
-            batch_evaluate_jobs(db=db, user=user, limit=50)
-        except Exception as e:
-            logger.warning(f"Batch evaluate jobs error: {e}")
-
         q = (
             db.query(Job, JobMatch, Application)
             .options(joinedload(Job.source))

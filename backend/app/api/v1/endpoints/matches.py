@@ -111,6 +111,7 @@ def trigger_matching(
         db=db,
         user=current_user,
         limit=payload.limit,
+        force_reevaluate=payload.force_reevaluate,
     )
     return MatchEvaluateResponse(
         status="completed",

@@ -1,45 +1,38 @@
 import React from 'react';
 import {
-  RefreshCw,
-  Award,
   Globe,
   ExternalLink,
   Check,
   CheckCircle2,
+  Sliders,
+  Bot,
+  SearchX,
+  Play,
 } from 'lucide-react';
 
 export default function JobsTab({
   jobs,
   loading,
-  handleSyncJobs,
-  handleEvaluateMatches,
   handleMarkApplied,
+  hasEverRun,
+  setActiveTab,
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Matched Opportunities (Ranked by CV Fit)</h2>
+          <h2 className="text-lg font-bold text-slate-900">Agent-Matched Opportunities</h2>
           <p className="text-xs text-slate-500">
-            Live job listings scored and ordered strictly by candidate match. Click 'Apply on Site' to submit your CV directly.
+            Job listings discovered and scored by the Agent combining your CV facts and search preferences.
           </p>
         </div>
         <div className="flex items-center space-x-3">
           <button
-            onClick={handleSyncJobs}
-            disabled={loading}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Sync Live Jobs (Arbeitnow)</span>
-          </button>
-          <button
-            onClick={handleEvaluateMatches}
-            disabled={loading}
+            onClick={() => setActiveTab('agent')}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
-            <Award className="w-3.5 h-3.5" />
-            <span>Re-score Fits</span>
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Agent Search Settings</span>
           </button>
         </div>
       </div>
@@ -170,9 +163,42 @@ export default function JobsTab({
               </div>
             );
           })
+        ) : !hasEverRun ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center border-2 border-dashed border-slate-200 rounded-xl">
+            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mb-5 border border-emerald-100">
+              <Bot className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">Agent Cycle Not Yet Run</h3>
+            <p className="text-sm text-slate-500 max-w-md mb-4 leading-relaxed">
+              Jobs are discovered and scored strictly during the Agent Cycle by combining your CV facts and your search preferences.
+            </p>
+            <p className="text-xs text-slate-400 max-w-sm mb-6">
+              Configure your Target Roles, Locations, Work Mode, and Salary, then run the cycle.
+            </p>
+            <button
+              onClick={() => setActiveTab('agent')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <Play className="w-4 h-4" />
+              Go to Agent Search Settings
+            </button>
+          </div>
         ) : (
-          <div className="text-center py-12 text-slate-500 text-sm">
-            No jobs in feed. Click "Sync Live Jobs (Arbeitnow)" above to discover real listings!
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center border-2 border-dashed border-slate-200 rounded-xl">
+            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-5 border border-amber-100">
+              <SearchX className="w-8 h-8 text-amber-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">No Matching Jobs Found</h3>
+            <p className="text-sm text-slate-500 max-w-md mb-6 leading-relaxed">
+              The agent ran but no jobs matched your current search filters. Try broadening your locations or adding more target roles in Agent Settings.
+            </p>
+            <button
+              onClick={() => setActiveTab('agent')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <Sliders className="w-4 h-4" />
+              Adjust Agent Settings
+            </button>
           </div>
         )}
       </div>

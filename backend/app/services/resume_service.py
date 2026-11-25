@@ -104,14 +104,6 @@ async def save_and_parse_resume(
     db.commit()
     db.refresh(resume)
     db.refresh(user)
-
-    # Immediately trigger re-scoring for this user across active jobs
-    try:
-        from backend.app.services.matching_engine import batch_evaluate_jobs
-        batch_evaluate_jobs(db=db, user=user, limit=50, force_reevaluate=True)
-    except Exception as e:
-        logger.warning(f"Auto-rescore after resume upload failed: {e}")
-
     return resume
 
 

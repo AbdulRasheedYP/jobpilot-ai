@@ -115,7 +115,12 @@ async def test_profile_update_triggers_rescore(
         json=initial_update,
     )
 
-    # Check initial match
+    # Evaluate initial match
+    await async_client.post(
+        "/api/v1/matches/evaluate",
+        headers={**auth_headers, "Origin": "http://localhost:3000"},
+        json={"limit": 10},
+    )
     job_resp = await async_client.get("/api/v1/jobs?sort_by=match_score", headers=auth_headers)
     assert job_resp.status_code == 200
     jobs = job_resp.json()["items"]
@@ -134,6 +139,13 @@ async def test_profile_update_triggers_rescore(
         json=updated_profile,
     )
     assert put_resp.status_code == 200
+
+    # Re-evaluate matches explicitly
+    await async_client.post(
+        "/api/v1/matches/evaluate",
+        headers={**auth_headers, "Origin": "http://localhost:3000"},
+        json={"limit": 10, "force_reevaluate": True},
+    )
 
     # Verify score recalculated and increased
     job_resp2 = await async_client.get("/api/v1/jobs?sort_by=match_score", headers=auth_headers)

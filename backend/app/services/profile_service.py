@@ -31,12 +31,4 @@ def update_profile(db: Session, user: UserProfile, update_data: ProfileUpdate) -
             import logging
             logging.getLogger(__name__).warning(f"Failed to auto-register skill lookup: {e}")
 
-    # Re-evaluate match scores for candidate jobs when profile details change
-    try:
-        from backend.app.services.matching_engine import batch_evaluate_jobs
-        batch_evaluate_jobs(db=db, user=user, limit=50, force_reevaluate=True)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Re-evaluation after profile update failed: {e}")
-
     return user

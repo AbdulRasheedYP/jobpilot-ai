@@ -163,6 +163,13 @@ async def test_jobs_ranking_descending_order(
     db_session.add_all([job_high, job_low])
     db_session.commit()
 
+    # Evaluate matches explicitly to compute ranking scores
+    await async_client.post(
+        "/api/v1/matches/evaluate",
+        headers={**auth_headers, "Origin": "http://localhost:3000"},
+        json={"limit": 10},
+    )
+
     resp = await async_client.get("/api/v1/jobs", headers=auth_headers)
     assert resp.status_code == 200
     items = resp.json()["items"]

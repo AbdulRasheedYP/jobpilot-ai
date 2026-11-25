@@ -35,6 +35,7 @@ export default function App() {
   });
 
   const [activeRun, setActiveRun] = useState(null);
+  const [hasEverRun, setHasEverRun] = useState(false);
   const [agentLogs, setAgentLogs] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -111,11 +112,11 @@ export default function App() {
           fetchCurrentUser(),
           fetchDashboard(true),
           fetchRunsAndLogs(),
-          fetchJobs(),
           fetchPreferences(),
           fetchProfile(),
           fetchResumes(),
           fetchMetaOptions(),
+          // fetchJobs() intentionally NOT called here — jobs load only after Agent Cycle runs
         ]);
       }
     };
@@ -126,10 +127,9 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'overview') {
       fetchDashboard(true);
-      fetchJobs();
+      // No fetchJobs() — jobs are populated only after Agent Cycle runs
     } else if (activeTab === 'jobs') {
-      fetchJobs();
-      fetchMatches();
+      // No fetchJobs/fetchMatches — jobs in state from Agent Cycle
     } else if (activeTab === 'applications') {
       fetchApplications();
     } else if (activeTab === 'profile') {
@@ -199,6 +199,7 @@ export default function App() {
       if (res && res.ok) {
         const data = await res.json();
         const runsList = data.items || [];
+        setHasEverRun(runsList.length > 0);
         if (runsList.length > 0) {
           const latestRun = runsList[0];
           setActiveRun(latestRun);
@@ -330,9 +331,10 @@ export default function App() {
 
       if (res && res.ok) {
         const data = await res.json();
-        showToast('CV parsed and facts extracted! Auto-filling profile draft.', 'success');
+        showToast('CV parsed! Profile draft auto-filled. Configure your search settings and start the Agent Cycle to discover matching jobs.', 'success');
         setSelectedResume(data);
-        await Promise.all([fetchResumes(), fetchProfile(), fetchPreferences(), fetchJobs(), fetchDashboard()]);
+        // Only refresh profile-related data — job scoring happens only on Agent Cycle
+        await Promise.all([fetchResumes(), fetchProfile(), fetchPreferences()]);
       } else {
         const err = await res?.json().catch(() => ({}));
         showToast(err.detail || 'Failed to parse CV.', 'error');
@@ -354,8 +356,8 @@ export default function App() {
       });
 
       if (res && res.ok) {
-        showToast('Profile updated successfully! Re-scored matching jobs.', 'success');
-        await Promise.all([fetchProfile(), fetchJobs(), fetchMatches(), fetchDashboard()]);
+        showToast('Profile updated successfully!', 'success');
+        await fetchProfile();
       } else {
         const err = await res?.json().catch(() => ({}));
         showToast(err.detail || 'Failed to save profile.', 'error');
@@ -404,8 +406,8 @@ export default function App() {
       });
 
       if (prefRes && prefRes.ok) {
-        if (!silent) showToast('Agent search settings saved! Job matches re-calculated.', 'success');
-        await Promise.all([fetchPreferences(), fetchJobs(), fetchMatches()]);
+        if (!silent) showToast('Settings saved! Now click "Start Agent Cycle" to discover and score matching jobs.', 'success');
+        await fetchPreferences();
         return true;
       } else {
         const err = await prefRes.json().catch(() => ({}));
@@ -713,6 +715,7 @@ export default function App() {
             kpis={kpis}
             jobs={jobs}
             setActiveTab={setActiveTab}
+            hasEverRun={hasEverRun}
           />
         )}
 
@@ -720,9 +723,9 @@ export default function App() {
           <JobsTab
             jobs={jobs}
             loading={loading}
-            handleSyncJobs={handleSyncJobs}
-            handleEvaluateMatches={handleEvaluateMatches}
             handleMarkApplied={handleMarkApplied}
+            hasEverRun={hasEverRun}
+            setActiveTab={setActiveTab}
           />
         )}
 
