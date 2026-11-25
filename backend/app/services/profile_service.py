@@ -13,6 +13,16 @@ def get_profile(db: Session, user_id: uuid.UUID) -> UserProfile:
 
 def update_profile(db: Session, user: UserProfile, update_data: ProfileUpdate) -> UserProfile:
     update_dict = update_data.model_dump(exclude_unset=True)
+
+    # Safe email update check
+    if "email" in update_dict and update_dict["email"]:
+        new_email = str(update_dict["email"]).strip()
+        existing = db.query(UserProfile).filter(UserProfile.email == new_email, UserProfile.id != user.id).first()
+        if existing:
+            del update_dict["email"]
+        else:
+            update_dict["email"] = new_email
+
     for key, value in update_dict.items():
         if hasattr(user, key):
             setattr(user, key, value)

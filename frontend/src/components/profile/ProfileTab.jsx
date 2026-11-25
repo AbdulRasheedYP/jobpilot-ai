@@ -274,8 +274,9 @@ export default function ProfileTab({
                   <input
                     type="email"
                     value={profileForm.email}
-                    disabled
-                    className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed text-xs"
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                    placeholder="e.g. candidate@example.com"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white text-xs"
                   />
                 </div>
 

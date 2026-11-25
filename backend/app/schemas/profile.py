@@ -20,6 +20,7 @@ class ExperienceItem(BaseModel):
 
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
     current_location: Optional[str] = None
     preferred_locations: Optional[List[str]] = None

@@ -53,6 +53,7 @@ async def test_cv_upload_autofills_user_profile(
     p_data = profile_resp.json()
 
     assert p_data["full_name"] == "Arjun Nair"
+    assert p_data["email"] == "arjun.nair@example.com"
     assert p_data["phone"] == "+91 9876543210"
     assert p_data["current_location"] == "Kochi, Kerala, India"
     assert "Python" in p_data["skills"]
@@ -183,3 +184,51 @@ async def test_manual_fields_editable_and_saved(
     assert data["sponsorship_required"] is False
     assert "Bangalore" in data["preferred_locations"]
     assert "Malayalam" in data["languages"]
+
+
+def test_deterministic_cv_extraction_full_facts():
+    """Test that the deterministic section-aware fallback accurately extracts all candidate facts."""
+    from backend.app.services.cv_extractor import deterministic_extract_fallback
+
+    cv_text = """
+ABDUL RASHEED YP
+Python Backend Developer | Full-Stack & AI Applications
+Kerala, India   |   +91 9778106863   |   abdulrasheed5140@gmail.com
+
+TECHNICAL SKILLS
+Backend Development: Python, Django, FastAPI, REST APIs
+Frontend Development: React, TypeScript, JavaScript, Tailwind CSS
+Database & Data Management: PostgreSQL, SQLite, Redis
+
+TECHNICAL APPRENTICESHIP & EXPERIENCE
+Software Development Trainee — Brototype | 2025 – Present
+Undertaking structured software development training focused on Python backend engineering and REST APIs.
+
+EDUCATION
+Bachelor of Commerce (B.Com)
+Sullamussalam Science College, University of Calicut | 2022 – 2025
+Software Development Training Program
+Brototype | 2025 – Present
+
+LANGUAGES
+English — Working Proficiency
+Malayalam — Native
+"""
+    facts = deterministic_extract_fallback(cv_text)
+
+    assert facts["full_name"] == "ABDUL RASHEED YP"
+    assert facts["email"] == "abdulrasheed5140@gmail.com"
+    assert facts["phone"] == "+91 9778106863"
+    assert "Kerala" in facts["current_location"]
+    assert "Python Backend Developer" in facts["inferred_target_roles"]
+    assert "Python" in facts["extracted_skills"]
+    assert "FastAPI" in facts["extracted_skills"]
+    assert "PostgreSQL" in facts["extracted_skills"]
+    assert len(facts["extracted_education"]) == 2
+    assert "Bachelor of Commerce" in facts["extracted_education"][0]["degree"]
+    assert "Sullamussalam" in facts["extracted_education"][0]["institution"]
+    assert facts["extracted_education"][0]["graduation_year"] == 2025
+    assert len(facts["extracted_experience"]) >= 1
+    assert "Brototype" in facts["extracted_experience"][0]["company"]
+    assert "English" in facts["extracted_languages"]
+    assert "Malayalam" in facts["extracted_languages"]

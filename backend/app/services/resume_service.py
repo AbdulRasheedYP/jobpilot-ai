@@ -53,9 +53,13 @@ async def save_and_parse_resume(
     text = extract_text_from_file(content, file_type=ext)
     parsed_facts = await extract_facts_with_llm(text)
 
-    # Auto-fill UserProfile from extracted CV facts
     if parsed_facts.get("full_name") and isinstance(parsed_facts["full_name"], str) and parsed_facts["full_name"].strip():
         user.full_name = parsed_facts["full_name"].strip()
+    if parsed_facts.get("email") and isinstance(parsed_facts["email"], str) and parsed_facts["email"].strip():
+        extracted_email = parsed_facts["email"].strip()
+        existing_email_user = db.query(UserProfile).filter(UserProfile.email == extracted_email, UserProfile.id != user.id).first()
+        if not existing_email_user:
+            user.email = extracted_email
     if parsed_facts.get("phone") and isinstance(parsed_facts["phone"], str) and parsed_facts["phone"].strip():
         user.phone = parsed_facts["phone"].strip()
     if parsed_facts.get("current_location") and isinstance(parsed_facts["current_location"], str) and parsed_facts["current_location"].strip():
@@ -79,6 +83,9 @@ async def save_and_parse_resume(
 
     if isinstance(parsed_facts.get("extracted_experience"), list):
         user.experience = parsed_facts["extracted_experience"]
+
+    if isinstance(parsed_facts.get("extracted_languages"), list) and parsed_facts["extracted_languages"]:
+        user.languages = parsed_facts["extracted_languages"]
 
     # Update or initialize JobPreference strictly with inferred target roles from CV heading
     from backend.app.services.preference_service import get_or_create_preferences
