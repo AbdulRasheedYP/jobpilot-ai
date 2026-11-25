@@ -66,17 +66,17 @@ async def save_and_parse_resume(
         user.current_location = parsed_facts["current_location"].strip()
 
     extracted_skills = parsed_facts.get("extracted_skills") or []
-    if isinstance(extracted_skills, list) and extracted_skills:
-        current_skills = list(user.skills or [])
+    if isinstance(extracted_skills, list):
+        new_skills = []
         for s in extracted_skills:
             if isinstance(s, dict):
                 s = s.get("name") or s.get("skill") or str(s)
             if not isinstance(s, str) or not s.strip():
                 continue
             s_clean = s.strip()
-            if not any(isinstance(cs, str) and cs.lower() == s_clean.lower() for cs in current_skills):
-                current_skills.append(s_clean)
-        user.skills = current_skills
+            if not any(isinstance(cs, str) and cs.lower() == s_clean.lower() for cs in new_skills):
+                new_skills.append(s_clean)
+        user.skills = new_skills
 
     if isinstance(parsed_facts.get("extracted_education"), list):
         user.education = parsed_facts["extracted_education"]

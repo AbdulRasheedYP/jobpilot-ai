@@ -149,12 +149,12 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
 
     # 1. Name & Headline
     candidate_name = lines[0] if lines and len(lines[0]) < 60 else ""
-    heading = lines[1] if len(lines) > 1 and len(lines[1]) < 100 else ""
+    heading = lines[1] if len(lines) > 1 and len(lines[1]) < 120 else ""
 
     # Target role from heading
     target_roles = []
-    if heading and not any(k in heading.lower() for k in ["@", "phone", "http", "+", "github", "linkedin"]):
-        first_role = heading.split("|")[0].split("•")[0].strip()
+    if heading and not any(k in heading.lower() for k in ["@", "phone", "http", "+", "github", "linkedin", "gmail"]):
+        first_role = re.split(r"[|•▪]", heading)[0].strip(" -*•▪\t\u00a0")
         if first_role and len(first_role) < 50:
             target_roles.append(first_role)
 
@@ -162,18 +162,18 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
     email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", cv_text)
     email = email_match.group(0) if email_match else ""
 
-    phone_match = re.search(r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,}", cv_text)
-    phone = phone_match.group(0) if phone_match else ""
+    phone_match = re.search(r"(\+?\d{1,3}[-.\s\u00a0]?)?\(?\d{2,5}\)?[-.\s\u00a0]?\d{3,5}[-.\s\u00a0]?\d{3,5}", cv_text)
+    phone = phone_match.group(0).strip(" |-•▪\u00a0\t") if phone_match else ""
 
     # 3. Location
     location = ""
     loc_match = re.search(
-        r"(Kerala,\s*India|Bangalore[,\s\w]*|Bengaluru[,\s\w]*|Kochi[,\s\w]*|Hyderabad[,\s\w]*|Mumbai[,\s\w]*|Delhi[,\s\w]*|Pune[,\s\w]*|Chennai[,\s\w]*|Remote)",
+        r"(Kozhikode[,\s\w]*|Kerala,\s*India|Bangalore[,\s\w]*|Bengaluru[,\s\w]*|Kochi[,\s\w]*|Hyderabad[,\s\w]*|Mumbai[,\s\w]*|Delhi[,\s\w]*|Pune[,\s\w]*|Chennai[,\s\w]*|Remote)",
         cv_text,
         re.IGNORECASE,
     )
     if loc_match:
-        location = loc_match.group(0).strip(" |-•")
+        location = loc_match.group(0).strip(" |-•▪\u00a0\t")
     else:
         location = "India"
 
@@ -182,19 +182,20 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
     current_sec = "HEADER"
     sections[current_sec] = []
 
-    KNOWN_SECTION_KEYWORDS = [
+    SECTION_HEADERS = [
         "professional summary", "summary", "technical skills", "skills",
         "featured engineering projects", "projects", "featured projects",
-        "technical apprenticeship & experience", "apprenticeship", "work experience", "experience",
-        "education", "academic background", "languages", "certifications",
+        "technical apprenticeship & experience", "apprenticeship", "work experience",
+        "professional experience", "experience",
+        "education & training", "education", "academic background", "languages", "certifications",
     ]
 
     for l in lines:
-        clean = l.lower().strip(":").strip(" -*•")
+        clean = l.lower().strip(":").strip(" -*•▪\t\u00a0")
         matched_sec = None
-        for sec_name in KNOWN_SECTION_KEYWORDS:
-            if clean == sec_name or clean.startswith(sec_name):
-                matched_sec = sec_name
+        for sec in SECTION_HEADERS:
+            if clean == sec or clean.startswith(sec):
+                matched_sec = sec
                 break
         if matched_sec:
             current_sec = matched_sec
@@ -203,31 +204,29 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
         sections[current_sec].append(l)
 
     # 5. Skills extraction
-    skills = []
     skills_lines = sections.get("technical skills", []) or sections.get("skills", [])
-    skills_text = " ".join(skills_lines) if skills_lines else cv_text
+    skills_text = " ".join(skills_lines)
+    clean_skills_text = re.sub(r"\(.*?\)", "", skills_text)
 
-    # Extract comma or bullet separated skills
-    for chunk in re.split(r"[,:•|\n]", skills_text):
-        c = chunk.strip(" -*•\t")
-        if c and 2 < len(c) < 35 and not any(h in c.lower() for h in ["development", "management", "integration", "skills", "tools", "testing"]):
-            if c not in skills:
-                skills.append(c)
-
-    # Also check against standard technical skills catalog
-    COMMON_SKILLS = [
-        "Python", "FastAPI", "Django", "Django REST Framework", "Flask", "React", "React.js",
-        "JavaScript", "TypeScript", "Node.js", "SQL", "PostgreSQL", "MySQL", "SQLite",
-        "MongoDB", "Redis", "Docker", "Kubernetes", "Git", "GitHub", "Linux", "AWS",
-        "REST APIs", "REST API", "GraphQL", "CI/CD", "Celery", "HTML", "HTML5", "CSS",
-        "CSS3", "Tailwind CSS", "Tailwind", "Java", "C++", "Pytest", "Postman", "RAG",
-        "Vector Embeddings", "Nginx",
+    CATEGORY_PREFIXES = [
+        "rpa & orchestration", "programming", "databases", "web development", "tools",
+        "domain", "backend development", "backend", "frontend development", "frontend",
+        "database & data management", "ai & llm integration", "cloud & devops", "testing & tools",
+        "testing", "cloud",
     ]
-    cv_lower = cv_text.lower()
-    for s in COMMON_SKILLS:
-        pattern = r"\b" + re.escape(s.lower()) + r"\b"
-        if re.search(pattern, cv_lower) and not any(cs.lower() == s.lower() for cs in skills):
-            skills.append(s)
+    for cat in CATEGORY_PREFIXES:
+        clean_skills_text = re.sub(r"\b" + re.escape(cat) + r"[:\s]+", ", ", clean_skills_text, flags=re.IGNORECASE)
+
+    skills = []
+    for chunk in re.split(r"[,;•|▪\n]", clean_skills_text):
+        c = chunk.strip(" -*•▪\t\u00a0()")
+        if c and 1 < len(c) < 32:
+            if not any(j in c.lower() for j in [
+                "credit union", "banking", "payment", "transaction", "fraud",
+                "reconciliation", "member data", "development", "management", "integration",
+            ]):
+                if not any(cs.lower() == c.lower() for cs in skills):
+                    skills.append(c)
 
     # 6. Education extraction
     edu_lines = []
@@ -239,38 +238,43 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
     education = []
     i = 0
     while i < len(edu_lines):
-        line = edu_lines[i].strip(" -*•")
+        line = edu_lines[i].strip(" -*•▪\t\u00a0")
         if not line:
             i += 1
             continue
-        degree = line
+
+        degree = ""
         inst = ""
         year = None
 
-        if i + 1 < len(edu_lines):
-            next_line = edu_lines[i + 1].strip(" -*•")
-            years = re.findall(r"\b(19\d{2}|20\d{2})\b", next_line)
+        sep_match = re.search(r"[·•|]", line)
+        if sep_match:
+            parts = re.split(r"[·•|]", line, maxsplit=1)
+            degree = parts[0].strip(" -*•▪\t\u00a0")
+            rest = parts[1].strip(" -*•▪\t\u00a0")
+            years = re.findall(r"\b(19\d{2}|20\d{2})\b", rest)
             if years:
                 year = int(years[-1])
-                inst = re.sub(r"\|\s*\d{4}.*$", "", next_line).strip(" |-\t•")
-                i += 1
-            elif not any(deg in next_line.lower() for deg in ["bachelor", "master", "degree", "diploma", "program"]):
-                inst = next_line
+            inst = re.sub(r"(\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*)?\b(19\d{2}|20\d{2})\s*([–\-to]\s*(\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*)?(19\d{2}|20\d{2}|Present))?", "", rest, flags=re.IGNORECASE).strip(" ,|-\t•▪\u00a0")
+            i += 1
+        else:
+            degree = line
+            if i + 1 < len(edu_lines):
+                next_line = edu_lines[i + 1].strip(" -*•▪\t\u00a0")
+                years = re.findall(r"\b(19\d{2}|20\d{2})\b", next_line)
+                if years:
+                    year = int(years[-1])
+                inst = re.sub(r"(\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*)?\b(19\d{2}|20\d{2})\s*([–\-to]\s*(\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*)?(19\d{2}|20\d{2}|Present))?", "", next_line, flags=re.IGNORECASE).strip(" ,|-\t•▪\u00a0")
+                i += 2
+            else:
                 i += 1
 
-        education.append({
-            "degree": degree,
-            "institution": inst or "University / College",
-            "graduation_year": year,
-        })
-        i += 1
-
-    if not education and ("degree" in cv_lower or "b.tech" in cv_lower or "university" in cv_lower or "college" in cv_lower):
-        education.append({
-            "institution": "University / Institute",
-            "degree": "Graduate Degree",
-            "graduation_year": 2024,
-        })
+        if degree:
+            education.append({
+                "degree": degree,
+                "institution": inst or "University / College",
+                "graduation_year": year,
+            })
 
     # 7. Experience extraction
     exp_lines = []
@@ -281,20 +285,16 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
 
     experience = []
     if exp_lines:
-        title_line = exp_lines[0].strip(" -*•")
+        title_line = exp_lines[0].strip(" -*•▪\t\u00a0")
         company = ""
         title = title_line
-        if "—" in title_line:
-            parts = title_line.split("—")
-            title = parts[0].strip()
-            rest = parts[1].strip()
-            company = rest.split("|")[0].strip() if "|" in rest else rest
-        elif "|" in title_line:
-            parts = title_line.split("|")
-            title = parts[0].strip()
-            company = parts[1].strip()
+        if "·" in title_line or "—" in title_line or "|" in title_line:
+            parts = re.split(r"[·—|]", title_line)
+            title = parts[0].strip(" -*•▪\t\u00a0")
+            rest = parts[1].strip(" -*•▪\t\u00a0")
+            company = re.sub(r"(\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*)?\b(19\d{2}|20\d{2})\s*([–\-to]\s*(\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*)?(19\d{2}|20\d{2}|Present))?", "", rest, flags=re.IGNORECASE).strip(" ,|-\t•▪\u00a0")
 
-        desc_parts = [l.strip(" •-") for l in exp_lines[1:6] if l.strip()]
+        desc_parts = [l.strip(" •▪\u00a0-") for l in exp_lines[1:6] if l.strip()]
         desc = " ".join(desc_parts)
 
         years = re.findall(r"\b(19\d{2}|20\d{2})\b", title_line)
@@ -302,11 +302,11 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
         end_year = "Present" if "present" in title_line.lower() else (years[1] if len(years) > 1 else "Present")
 
         experience.append({
-            "company": company or "Technology Solutions",
+            "company": company or "Technology Firm",
             "title": title,
             "start_date": start_year,
             "end_date": end_year,
-            "description": desc or "Software engineering and development responsibilities.",
+            "description": desc or "Engineering and development responsibilities.",
         })
 
     # 8. Languages
@@ -314,7 +314,7 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
     for k, v in sections.items():
         if "languages" in k:
             for l in v:
-                lang = l.split("—")[0].split("-")[0].strip(" •-")
+                lang = l.split("—")[0].split("-")[0].strip(" •▪\u00a0-")
                 if lang and len(lang) < 25:
                     languages.append(lang)
             break
