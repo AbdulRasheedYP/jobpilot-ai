@@ -3,9 +3,12 @@ import math
 import logging
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, desc
+from sqlalchemy import or_, desc, func, and_
 from fastapi import HTTPException, status
 from backend.app.models.job import Job, JobSource, Company
+from backend.app.models.job_match import JobMatch
+from backend.app.models.application import Application
+from backend.app.models.user_profile import UserProfile
 from backend.app.schemas.job import JobSourceCreate, JobSourceUpdate, JobSyncResponse
 from backend.app.adapters.sources import get_source_adapter
 from backend.app.adapters.sources.base import normalize_url
@@ -203,14 +206,76 @@ async def ingest_jobs_from_source(
 
 def list_jobs(
     db: Session,
+    user: Optional[UserProfile] = None,
     page: int = 1,
     size: int = 20,
     is_remote: Optional[bool] = None,
     role: Optional[str] = None,
     query: Optional[str] = None,
     source_id: Optional[uuid.UUID] = None,
+    sort_by: str = "match_score",
 ) -> Tuple[List[Job], int, int]:
-    """Retrieve jobs with pagination and optional search filters."""
+    """
+    Retrieve jobs with pagination, filters, and matching-order ranking.
+    If a candidate user is provided, computes any missing match scores and
+    orders by highest matching score first.
+    """
+    if user:
+        # Pre-evaluate unmatched jobs so scores are strictly up to date
+        try:
+            from backend.app.services.matching_engine import batch_evaluate_jobs
+            batch_evaluate_jobs(db=db, user=user, limit=50)
+        except Exception as e:
+            logger.warning(f"Batch evaluate jobs error: {e}")
+
+        q = (
+            db.query(Job, JobMatch, Application)
+            .options(joinedload(Job.source))
+            .outerjoin(JobMatch, and_(JobMatch.job_id == Job.id, JobMatch.user_profile_id == user.id))
+            .outerjoin(Application, and_(Application.job_id == Job.id, Application.user_profile_id == user.id))
+            .filter(Job.is_active == True)
+        )
+
+        if is_remote is not None:
+            q = q.filter(Job.is_remote == is_remote)
+
+        if source_id:
+            q = q.filter(Job.source_id == source_id)
+
+        if role:
+            q = q.filter(Job.title.ilike(f"%{role}%"))
+
+        if query:
+            search_filter = or_(
+                Job.title.ilike(f"%{query}%"),
+                Job.company_name.ilike(f"%{query}%"),
+                Job.description.ilike(f"%{query}%"),
+                Job.location.ilike(f"%{query}%"),
+            )
+            q = q.filter(search_filter)
+
+        total = q.count()
+        pages = math.ceil(total / size) if total > 0 else 1
+        offset = (page - 1) * size
+
+        if sort_by == "match_score":
+            q = q.order_by(JobMatch.overall_score.desc().nullslast(), Job.created_at.desc())
+        else:
+            q = q.order_by(desc(Job.created_at))
+
+        results = q.offset(offset).limit(size).all()
+
+        items = []
+        for job_item, match_item, app_item in results:
+            job_item.match_score = match_item.overall_score if match_item else 0.0
+            job_item.decision_reasons = match_item.decision_reasons if match_item else []
+            job_item.matched_skills = match_item.matched_skills if match_item else []
+            job_item.is_applied = True if app_item else False
+            items.append(job_item)
+
+        return items, total, pages
+
+    # Fallback for unauthenticated or generic listing
     q = db.query(Job).options(joinedload(Job.source)).filter(Job.is_active == True)
 
     if is_remote is not None:
@@ -235,15 +300,32 @@ def list_jobs(
     pages = math.ceil(total / size) if total > 0 else 1
     offset = (page - 1) * size
     items = q.order_by(desc(Job.created_at)).offset(offset).limit(size).all()
+    for job in items:
+        job.match_score = 0.0
+        job.decision_reasons = []
+        job.matched_skills = []
+        job.is_applied = False
 
     return items, total, pages
 
 
-def get_job_by_id(db: Session, job_id: uuid.UUID) -> Job:
+def get_job_by_id(db: Session, job_id: uuid.UUID, user: Optional[UserProfile] = None) -> Job:
     job = db.query(Job).options(joinedload(Job.source)).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job listing not found",
         )
+    if user:
+        match = db.query(JobMatch).filter(JobMatch.job_id == job_id, JobMatch.user_profile_id == user.id).first()
+        app = db.query(Application).filter(Application.job_id == job_id, Application.user_profile_id == user.id).first()
+        job.match_score = match.overall_score if match else 0.0
+        job.decision_reasons = match.decision_reasons if match else []
+        job.matched_skills = match.matched_skills if match else []
+        job.is_applied = True if app else False
+    else:
+        job.match_score = 0.0
+        job.decision_reasons = []
+        job.matched_skills = []
+        job.is_applied = False
     return job

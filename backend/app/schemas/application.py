@@ -35,6 +35,11 @@ class ApplicationPrepareRequest(BaseModel):
     job_id: uuid.UUID
 
 
+class ApplicationMarkAppliedRequest(BaseModel):
+    job_id: uuid.UUID
+    notes: Optional[str] = "Applied directly on employer portal"
+
+
 class ApplicationResponse(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID

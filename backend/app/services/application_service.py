@@ -100,6 +100,81 @@ async def prepare_application_for_job(
     return app_record
 
 
+def mark_job_as_applied(
+    db: Session,
+    user: UserProfile,
+    job_id: uuid.UUID,
+    notes: Optional[str] = "Applied directly on employer portal",
+) -> Application:
+    """
+    Marks a job as self-applied by the candidate:
+    1. Verifies target job.
+    2. Attaches candidate's uploaded original CV.
+    3. Sets status to APPLIED_CONFIRMED.
+    """
+    from datetime import datetime, timezone
+
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job listing not found",
+        )
+
+    # Check for existing application
+    app_record = (
+        db.query(Application)
+        .filter(Application.job_id == job_id, Application.user_profile_id == user.id)
+        .first()
+    )
+
+    uploaded_resume = (
+        db.query(Resume)
+        .filter(Resume.user_profile_id == user.id)
+        .order_by(desc(Resume.created_at))
+        .first()
+    )
+    resume_id = uploaded_resume.id if uploaded_resume else None
+    now = datetime.now(timezone.utc)
+
+    if not app_record:
+        app_record = Application(
+            id=uuid.uuid4(),
+            job_id=job.id,
+            user_profile_id=user.id,
+            tailored_resume_id=resume_id,
+            status=ApplicationStatus.APPLIED_CONFIRMED,
+            submission_method="self_applied",
+            submitted_at=now,
+            notes=notes,
+            confirmation_evidence={"method": "self_applied", "portal_url": job.application_url or job.canonical_url},
+        )
+        db.add(app_record)
+    else:
+        app_record.status = ApplicationStatus.APPLIED_CONFIRMED
+        app_record.submission_method = "self_applied"
+        app_record.submitted_at = now
+        app_record.notes = notes
+        if resume_id:
+            app_record.tailored_resume_id = resume_id
+
+    db.commit()
+    db.refresh(app_record)
+    return app_record
+
+
+def delete_application(db: Session, user_id: uuid.UUID, application_id: uuid.UUID) -> None:
+    app_record = (
+        db.query(Application)
+        .filter(Application.id == application_id, Application.user_profile_id == user_id)
+        .first()
+    )
+    if not app_record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    db.delete(app_record)
+    db.commit()
+
+
 def list_applications(
     db: Session,
     user_id: uuid.UUID,

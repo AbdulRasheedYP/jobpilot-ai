@@ -18,18 +18,21 @@ def get_jobs(
     role: Optional[str] = Query(None, description="Filter by title role"),
     query: Optional[str] = Query(None, description="Text search across title, company, description"),
     source_id: Optional[uuid.UUID] = Query(None, description="Filter by job source"),
+    sort_by: str = Query("match_score", description="Sort order: 'match_score' or 'created_at'"),
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Retrieve discovered and normalized job listings with filters and pagination."""
+    """Retrieve discovered and normalized job listings ranked by matching score order."""
     items, total, pages = job_service.list_jobs(
         db=db,
+        user=current_user,
         page=page,
         size=size,
         is_remote=is_remote,
         role=role,
         query=query,
         source_id=source_id,
+        sort_by=sort_by,
     )
     return JobListResponse(
         items=items,
@@ -46,8 +49,8 @@ def get_job(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Retrieve full details of a specific job listing."""
-    return job_service.get_job_by_id(db=db, job_id=job_id)
+    """Retrieve full details of a specific job listing with candidate match score."""
+    return job_service.get_job_by_id(db=db, job_id=job_id, user=current_user)
 
 
 @router.post("/sync", response_model=JobSyncResponse)

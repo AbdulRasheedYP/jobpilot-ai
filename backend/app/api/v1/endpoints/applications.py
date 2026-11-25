@@ -9,6 +9,7 @@ from backend.app.schemas.application import (
     ApplicationResponse,
     ApplicationListResponse,
     ApplicationPrepareRequest,
+    ApplicationMarkAppliedRequest,
     ApplicationPatchRequest,
     AnswerUpdateRequest,
     AnswersListResponse,
@@ -18,6 +19,24 @@ from backend.app.services import application_service
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
 
+@router.post("/mark-applied", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
+def mark_applied(
+    payload: ApplicationMarkAppliedRequest,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Direct self-apply tracking: marks a target job as applied by the candidate.
+    Records applied timestamp, attaches candidate's CV, and stores notes.
+    """
+    return application_service.mark_job_as_applied(
+        db=db,
+        user=current_user,
+        job_id=payload.job_id,
+        notes=payload.notes,
+    )
+
+
 @router.post("/prepare", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
 async def prepare_application(
     payload: ApplicationPrepareRequest,
@@ -25,8 +44,7 @@ async def prepare_application(
     db: Session = Depends(get_db),
 ):
     """
-    Generate tailored ATS CV using strictly verified candidate facts,
-    prepare screening answers, and evaluate missing mandatory fields.
+    Generate application record for a target job using candidate's uploaded CV.
     """
     return await application_service.prepare_application_for_job(
         db=db,
@@ -154,16 +172,16 @@ async def submit_application(
     )
 
 
-@router.post("/auto-apply/run")
-async def run_batch_auto_apply_endpoint(
-    limit: int = Query(5, ge=1, le=25, description="Max applications to submit in this run"),
+@router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_application(
+    application_id: uuid.UUID,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Trigger automated batch submission run for all READY applications."""
-    from backend.app.services import auto_apply_service
-    return await auto_apply_service.run_batch_auto_apply(
+    """Remove a tracked application."""
+    application_service.delete_application(
         db=db,
-        user=current_user,
-        limit=limit,
+        user_id=current_user.id,
+        application_id=application_id,
     )
+

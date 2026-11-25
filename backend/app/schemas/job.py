@@ -51,6 +51,10 @@ class JobResponse(BaseModel):
     canonical_url: str
     posted_at: Optional[datetime] = None
     is_active: bool
+    match_score: Optional[float] = None
+    decision_reasons: List[str] = Field(default_factory=list)
+    matched_skills: List[str] = Field(default_factory=list)
+    is_applied: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
 
@@ -84,6 +84,32 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan,
 )
+
+# Security Headers and CSRF Middleware
+@app.middleware("http")
+async def security_and_csrf_headers_middleware(request: Request, call_next):
+    # CSRF Origin validation for state-changing HTTP methods from browsers
+    if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
+        origin = request.headers.get("origin")
+        if origin:
+            allowed_origins = [
+                o.rstrip("/") for o in settings.ALLOWED_CORS_ORIGINS
+            ] + ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
+            if not any(origin.startswith(ao) for ao in allowed_origins):
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "CSRF verification failed: Untrusted Origin"},
+                )
+
+    response: Response = await call_next(request)
+    # Standard Defense-in-Depth Security Headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
 # Configure CORS
 app.add_middleware(
