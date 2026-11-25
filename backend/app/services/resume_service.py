@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -9,6 +10,8 @@ from backend.app.models.resume import Resume
 from backend.app.models.user_profile import UserProfile
 from backend.app.schemas.resume import ResumeConfirmRequest, ResumeConfirmResponse
 from backend.app.services.cv_extractor import extract_text_from_file, extract_facts_with_llm
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_dir(path: str):
@@ -50,6 +53,43 @@ async def save_and_parse_resume(
     text = extract_text_from_file(content, file_type=ext)
     parsed_facts = await extract_facts_with_llm(text)
 
+    # Auto-fill UserProfile from extracted CV facts
+    if parsed_facts.get("full_name") and parsed_facts["full_name"].strip():
+        user.full_name = parsed_facts["full_name"].strip()
+    if parsed_facts.get("phone") and parsed_facts["phone"].strip():
+        user.phone = parsed_facts["phone"].strip()
+    if parsed_facts.get("current_location") and parsed_facts["current_location"].strip():
+        user.current_location = parsed_facts["current_location"].strip()
+
+    extracted_skills = parsed_facts.get("extracted_skills") or []
+    if extracted_skills:
+        current_skills = list(user.skills or [])
+        for s in extracted_skills:
+            if not any(cs.lower() == s.lower() for cs in current_skills):
+                current_skills.append(s)
+        user.skills = current_skills
+
+    if parsed_facts.get("extracted_education"):
+        user.education = parsed_facts["extracted_education"]
+
+    if parsed_facts.get("extracted_experience"):
+        user.experience = parsed_facts["extracted_experience"]
+
+    # Also update or initialize JobPreference with inferred roles/locations
+    from backend.app.services.preference_service import get_or_create_preferences
+    pref = get_or_create_preferences(db=db, user_id=user.id)
+    inferred_roles = parsed_facts.get("inferred_target_roles") or []
+    if inferred_roles:
+        default_roles = ["Python Developer", "Backend Developer"]
+        if not pref.target_roles or pref.target_roles == default_roles:
+            pref.target_roles = inferred_roles
+    if parsed_facts.get("current_location"):
+        loc = parsed_facts["current_location"]
+        curr_locs = list(pref.target_countries or [])
+        if loc not in curr_locs:
+            curr_locs.append(loc)
+            pref.target_countries = curr_locs
+
     # Create Resume DB record
     resume = Resume(
         id=uuid.uuid4(),
@@ -64,6 +104,15 @@ async def save_and_parse_resume(
     db.add(resume)
     db.commit()
     db.refresh(resume)
+    db.refresh(user)
+
+    # Immediately trigger re-scoring for this user across active jobs
+    try:
+        from backend.app.services.matching_engine import batch_evaluate_jobs
+        batch_evaluate_jobs(db=db, user=user, limit=50, force_reevaluate=True)
+    except Exception as e:
+        logger.warning(f"Auto-rescore after resume upload failed: {e}")
+
     return resume
 
 

@@ -30,7 +30,11 @@ import {
   Copy,
   ChevronRight,
   Globe,
-  Trash2
+  Trash2,
+  Plus,
+  Save,
+  GraduationCap,
+  Sparkles
 } from 'lucide-react';
 
 const API_BASE = '/api/v1';
@@ -75,6 +79,36 @@ export default function App() {
   const fileInputRef = useRef(null);
   const [uploadingResume, setUploadingResume] = useState(false);
   const [selectedResume, setSelectedResume] = useState(null);
+
+  // Interactive Profile & Preferences Editing State
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    current_location: '',
+    preferred_locations: [],
+    skills: [],
+    education: [],
+    experience: [],
+    notice_period_days: 0,
+    sponsorship_required: false,
+  });
+
+  const [prefForm, setPrefForm] = useState({
+    target_roles: ['Python Developer', 'Backend Developer'],
+    target_countries: ['India', 'Remote'],
+    work_modes: ['remote', 'hybrid', 'onsite'],
+    min_match_score: 65,
+  });
+
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [newSkillInput, setNewSkillInput] = useState('');
+  const [newRoleInput, setNewRoleInput] = useState('');
+  const [newLocationInput, setNewLocationInput] = useState('');
+  const [newExp, setNewExp] = useState({ company: '', title: '', start_date: '', end_date: '', description: '' });
+  const [showAddExp, setShowAddExp] = useState(false);
+  const [newEdu, setNewEdu] = useState({ institution: '', degree: '', graduation_year: 2024 });
+  const [showAddEdu, setShowAddEdu] = useState(false);
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
@@ -192,6 +226,35 @@ export default function App() {
       fetchRunsAndLogs();
     }
   }, [activeTab, token]);
+
+  // Synchronize backend profile & preferences into interactive form state
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        full_name: profile.full_name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+        current_location: profile.current_location || '',
+        preferred_locations: profile.preferred_locations || [],
+        skills: profile.skills || [],
+        education: profile.education || [],
+        experience: profile.experience || [],
+        notice_period_days: profile.notice_period_days || 0,
+        sponsorship_required: profile.sponsorship_required || false,
+      });
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (preferences) {
+      setPrefForm({
+        target_roles: preferences.target_roles || ['Python Developer', 'Backend Developer'],
+        target_countries: preferences.target_countries || ['India', 'Remote'],
+        work_modes: preferences.work_modes || ['remote', 'hybrid', 'onsite'],
+        min_match_score: preferences.min_match_score || 65,
+      });
+    }
+  }, [preferences]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -348,9 +411,11 @@ export default function App() {
 
       if (res && res.ok) {
         const newResume = await res.json();
-        showToast('CV parsed successfully! Review and confirm verified facts below.', 'success');
+        showToast('CV imported & parsed! Candidate profile auto-populated.', 'success');
         fetchResumes();
         fetchProfile();
+        fetchPreferences();
+        fetchJobs();
         setSelectedResume(newResume);
       } else {
         let errDetail = 'Unknown upload error.';
@@ -400,10 +465,153 @@ export default function App() {
         showToast('Zero-Hallucination Gate Verified: Profile locked & ready!', 'success');
         fetchResumes();
         fetchProfile();
+        fetchJobs();
       }
     } catch (e) {
       showToast('Failed to confirm resume: ' + e.message, 'error');
     }
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const profRes = await authFetch('/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          full_name: profileForm.full_name,
+          phone: profileForm.phone,
+          current_location: profileForm.current_location,
+          preferred_locations: profileForm.preferred_locations,
+          skills: profileForm.skills,
+          education: profileForm.education,
+          experience: profileForm.experience,
+          notice_period_days: Number(profileForm.notice_period_days) || 0,
+          sponsorship_required: Boolean(profileForm.sponsorship_required),
+        }),
+      });
+
+      const prefRes = await authFetch('/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({
+          target_roles: prefForm.target_roles,
+          target_countries: prefForm.target_countries,
+          work_modes: prefForm.work_modes,
+          min_match_score: Number(prefForm.min_match_score) || 65,
+        }),
+      });
+
+      if (profRes && profRes.ok && prefRes && prefRes.ok) {
+        showToast('Profile & preferences saved! Jobs re-scored and ranked.', 'success');
+        await fetchProfile();
+        await fetchPreferences();
+        await fetchJobs();
+      } else {
+        showToast('Failed to save profile changes.', 'error');
+      }
+    } catch (err) {
+      showToast('Error saving profile: ' + err.message, 'error');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleAddSkill = (e) => {
+    e?.preventDefault();
+    const trimmed = newSkillInput.trim();
+    if (!trimmed) return;
+    if (!profileForm.skills.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
+      setProfileForm((prev) => ({ ...prev, skills: [...prev.skills, trimmed] }));
+    }
+    setNewSkillInput('');
+  };
+
+  const handleRemoveSkill = (skillToRemove) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      skills: prev.skills.filter((s) => s !== skillToRemove),
+    }));
+  };
+
+  const handleAddRole = (e) => {
+    e?.preventDefault();
+    const trimmed = newRoleInput.trim();
+    if (!trimmed) return;
+    if (!prefForm.target_roles.some((r) => r.toLowerCase() === trimmed.toLowerCase())) {
+      setPrefForm((prev) => ({ ...prev, target_roles: [...prev.target_roles, trimmed] }));
+    }
+    setNewRoleInput('');
+  };
+
+  const handleRemoveRole = (roleToRemove) => {
+    setPrefForm((prev) => ({
+      ...prev,
+      target_roles: prev.target_roles.filter((r) => r !== roleToRemove),
+    }));
+  };
+
+  const handleAddLocation = (e) => {
+    e?.preventDefault();
+    const trimmed = newLocationInput.trim();
+    if (!trimmed) return;
+    if (!prefForm.target_countries.some((l) => l.toLowerCase() === trimmed.toLowerCase())) {
+      setPrefForm((prev) => ({ ...prev, target_countries: [...prev.target_countries, trimmed] }));
+    }
+    setNewLocationInput('');
+  };
+
+  const handleRemoveLocation = (locToRemove) => {
+    setPrefForm((prev) => ({
+      ...prev,
+      target_countries: prev.target_countries.filter((l) => l !== locToRemove),
+    }));
+  };
+
+  const handleToggleWorkMode = (mode) => {
+    setPrefForm((prev) => {
+      const exists = prev.work_modes.includes(mode);
+      const nextModes = exists ? prev.work_modes.filter((m) => m !== mode) : [...prev.work_modes, mode];
+      return { ...prev, work_modes: nextModes.length ? nextModes : [mode] };
+    });
+  };
+
+  const handleAddExperience = () => {
+    if (!newExp.company.trim() || !newExp.title.trim()) {
+      showToast('Please provide Company and Title.', 'error');
+      return;
+    }
+    setProfileForm((prev) => ({
+      ...prev,
+      experience: [...prev.experience, { ...newExp }],
+    }));
+    setNewExp({ company: '', title: '', start_date: '', end_date: '', description: '' });
+    setShowAddExp(false);
+  };
+
+  const handleRemoveExperience = (idx) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      experience: prev.experience.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleAddEducation = () => {
+    if (!newEdu.institution.trim() || !newEdu.degree.trim()) {
+      showToast('Please provide Institution and Degree.', 'error');
+      return;
+    }
+    setProfileForm((prev) => ({
+      ...prev,
+      education: [...prev.education, { ...newEdu, graduation_year: Number(newEdu.graduation_year) || 2024 }],
+    }));
+    setNewEdu({ institution: '', degree: '', graduation_year: 2024 });
+    setShowAddEdu(false);
+  };
+
+  const handleRemoveEducation = (idx) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      education: prev.education.filter((_, i) => i !== idx),
+    }));
   };
 
   const handleSyncJobs = async () => {
@@ -1105,17 +1313,23 @@ export default function App() {
         )}
 
         {/* ============================================================== */}
-        {/* TAB 4: PROFILE & CV CENTER (WITH CV UPLOAD & ZERO-HALLUCINATION) */}
+        {/* TAB 4: CANDIDATE PROFILE & DECISION CENTER */}
         {/* ============================================================== */}
         {activeTab === 'profile' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: CV Upload & Zero-Hallucination Review */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-emerald-600" />
-                  <span>Upload Candidate CV</span>
+          <div className="space-y-6">
+            {/* Top Header & Actions Bar */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-emerald-600" />
+                  <span>Candidate Profile & Decision Center</span>
                 </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Auto-filled from your CV. Edit or fill missing fields anytime. The Decision Engine uses this verified profile to search and rank jobs.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -1126,139 +1340,519 @@ export default function App() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingResume}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer border border-slate-200"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>{uploadingResume ? 'Parsing...' : 'Upload File'}</span>
+                  <Upload className="w-3.5 h-3.5 text-slate-600" />
+                  <span>{uploadingResume ? 'Parsing CV...' : 'Import / Replace CV'}</span>
+                </button>
+
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                >
+                  {savingProfile ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  <span>{savingProfile ? 'Saving & Re-scoring...' : 'Save Profile & Re-score Jobs'}</span>
                 </button>
               </div>
+            </div>
 
-              {/* Zero-Hallucination Notice */}
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-emerald-900 leading-relaxed">
-                  <strong className="font-bold">Zero-Hallucination Policy:</strong> The LLM parses your CV, but all facts must be verified by you below before being used in any job application.
+            {/* Sync & Zero-Hallucination Status Banner */}
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div className="text-xs text-emerald-900">
+                  <span className="font-bold">Active CV Source: </span>
+                  {selectedResume ? (
+                    <span>
+                      <strong className="text-slate-900">{selectedResume.file_name}</strong> (Auto-populated into profile)
+                    </span>
+                  ) : (
+                    <span className="text-amber-800">No CV file uploaded yet. Form is in manual entry mode.</span>
+                  )}
                 </div>
               </div>
+              <span className="text-[11px] font-semibold text-emerald-700 bg-white/70 px-2.5 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
+                Zero-Hallucination Active
+              </span>
+            </div>
 
-              {/* Extracted Details */}
-              {selectedResume ? (
-                <div className="space-y-4 text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <span className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                      <FileCheck className="w-4 h-4 text-emerald-600" />
-                      <span>{selectedResume.file_name}</span>
-                    </span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        isResumeConfirmed(selectedResume)
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {isResumeConfirmed(selectedResume) ? 'Verified & Locked' : 'Pending Confirmation'}
-                    </span>
+            {/* Main Profile Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Column 1: Personal Info & Preferences */}
+              <div className="space-y-6">
+                {/* Card 1: Personal & Contact Information */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <UserCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Personal & Contact Information</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        value={profileForm.full_name}
+                        onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                        placeholder="e.g. Arjun Nair"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        value={profileForm.email}
+                        disabled
+                        className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Phone Number</label>
+                      <input
+                        type="text"
+                        value={profileForm.phone}
+                        onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                        placeholder="e.g. +91 9876543210"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Current Location</label>
+                      <input
+                        type="text"
+                        value={profileForm.current_location}
+                        onChange={(e) => setProfileForm({ ...profileForm, current_location: e.target.value })}
+                        placeholder="e.g. Kochi, Kerala, India"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Notice Period (Days)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={profileForm.notice_period_days}
+                        onChange={(e) => setProfileForm({ ...profileForm, notice_period_days: e.target.value })}
+                        placeholder="0 (Immediate)"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-5">
+                      <input
+                        type="checkbox"
+                        id="sponsorshipReq"
+                        checked={profileForm.sponsorship_required}
+                        onChange={(e) => setProfileForm({ ...profileForm, sponsorship_required: e.target.checked })}
+                        className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <label htmlFor="sponsorshipReq" className="text-xs text-slate-700 font-medium cursor-pointer">
+                        Visa Sponsorship Required
+                      </label>
+                    </div>
                   </div>
+                </div>
 
-                  <div>
-                    <span className="text-slate-500 font-semibold block">Full Name</span>
-                    <span className="font-bold text-slate-900 text-sm">
-                      {selectedResume.parsed_facts?.full_name || profile?.full_name || 'Candidate User'}
-                    </span>
-                  </div>
+                {/* Card 2: Job Search & Role Preferences */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Sliders className="w-4 h-4 text-emerald-600" />
+                    <span>Job Preferences & Constraints</span>
+                  </h3>
 
-                  <div>
-                    <span className="text-slate-500 font-semibold block">Email & Experience</span>
-                    <span className="text-slate-800">
-                      {selectedResume.parsed_facts?.email || profile?.email} • {profile?.experience?.length || 2} Roles Listed
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500 font-semibold block mb-1">Confirmed Technical Skills</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {getResumeSkills(selectedResume).length > 0 ? (
-                        getResumeSkills(selectedResume).map((s) => (
-                          <span
-                            key={s}
-                            className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-md text-[11px]"
+                  {/* Target Roles */}
+                  <div className="text-xs space-y-2">
+                    <label className="block text-slate-500 font-semibold">Target Roles</label>
+                    <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-slate-50 rounded-xl border border-slate-200">
+                      {prefForm.target_roles.map((role) => (
+                        <span
+                          key={role}
+                          className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <span>{role}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRole(role)}
+                            className="text-slate-400 hover:text-rose-600 cursor-pointer"
                           >
-                            {s}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-400">No skills parsed yet</span>
-                      )}
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <form onSubmit={handleAddRole} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newRoleInput}
+                        onChange={(e) => setNewRoleInput(e.target.value)}
+                        placeholder="Add role (e.g. Python Developer)..."
+                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add</span>
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Work Modes */}
+                  <div className="text-xs space-y-2 pt-2">
+                    <label className="block text-slate-500 font-semibold">Allowed Work Modes</label>
+                    <div className="flex items-center gap-3">
+                      {['remote', 'hybrid', 'onsite'].map((mode) => (
+                        <label
+                          key={mode}
+                          onClick={() => handleToggleWorkMode(mode)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider cursor-pointer transition-all ${
+                            prefForm.work_modes.includes(mode)
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs'
+                              : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
+                          }`}
+                        >
+                          {mode}
+                        </label>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="pt-2">
-                    <button
-                      onClick={() => handleConfirmResume(selectedResume.id)}
-                      disabled={isResumeConfirmed(selectedResume)}
-                      className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
-                        isResumeConfirmed(selectedResume)
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 cursor-pointer'
-                      }`}
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>{isResumeConfirmed(selectedResume) ? 'Facts Verified (Ready for ATS)' : 'Confirm & Lock Extracted Facts'}</span>
-                    </button>
+                  {/* Target Locations */}
+                  <div className="text-xs space-y-2 pt-2">
+                    <label className="block text-slate-500 font-semibold">Target Locations / Countries</label>
+                    <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-slate-50 rounded-xl border border-slate-200">
+                      {prefForm.target_countries.map((loc) => (
+                        <span
+                          key={loc}
+                          className="bg-white border border-slate-200 text-slate-800 font-medium px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <span>{loc}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLocation(loc)}
+                            className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <form onSubmit={handleAddLocation} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newLocationInput}
+                        onChange={(e) => setNewLocationInput(e.target.value)}
+                        placeholder="Add location (e.g. Remote, India, Bangalore)..."
+                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add</span>
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Minimum Match Score Threshold */}
+                  <div className="text-xs space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-slate-500 font-semibold">Minimum Match Score Threshold</label>
+                      <span className="font-bold text-emerald-600 text-sm">{prefForm.min_match_score}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="50"
+                      max="90"
+                      value={prefForm.min_match_score}
+                      onChange={(e) => setPrefForm({ ...prefForm, min_match_score: Number(e.target.value) })}
+                      className="w-full accent-emerald-600 cursor-pointer"
+                    />
+                    <span className="text-[11px] text-slate-400 block">
+                      Jobs with a match score above this threshold will receive priority ranking.
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-10 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                  No resume uploaded yet. Click "Upload File" above to parse your CV with Google Gemini!
-                </div>
-              )}
-            </div>
+              </div>
 
-            {/* Right: Preferences Configuration */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-emerald-600" />
-                <span>Job Preferences & Constraints</span>
-              </h2>
+              {/* Column 2: Skills, Experience & Education */}
+              <div className="space-y-6">
+                {/* Card 3: Technical Skills */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-emerald-600" />
+                      <span>Confirmed Technical Skills ({profileForm.skills.length})</span>
+                    </h3>
+                    <span className="text-[11px] text-slate-400">Used for 35% of match scoring</span>
+                  </div>
 
-              <div className="space-y-4 text-xs">
-                <div>
-                  <span className="text-slate-500 font-semibold block mb-1">Target Roles</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {preferences?.target_roles ? (
-                      preferences.target_roles.map((r, i) => (
-                        <span key={i} className="bg-slate-100 border border-slate-200 text-slate-800 font-medium px-2 py-0.5 rounded-md">
-                          {r}
+                  {/* Skills Tag Cloud */}
+                  <div className="flex flex-wrap gap-2 min-h-[50px] p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    {profileForm.skills.length > 0 ? (
+                      profileForm.skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <span>{skill}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSkill(skill)}
+                            className="text-emerald-500 hover:text-rose-600 cursor-pointer"
+                            title="Remove skill"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </span>
                       ))
                     ) : (
-                      <span className="text-slate-400">Software Engineer, Python Developer</span>
+                      <span className="text-slate-400 text-xs italic">
+                        No skills listed yet. Add skills below or upload your CV to auto-extract.
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Add Skill Form */}
+                  <form onSubmit={handleAddSkill} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newSkillInput}
+                      onChange={(e) => setNewSkillInput(e.target.value)}
+                      placeholder="Add technical skill (e.g. FastAPI, Docker, React)..."
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center gap-1 cursor-pointer shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Skill</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* Card 4: Work Experience */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-emerald-600" />
+                      <span>Work Experience ({profileForm.experience.length})</span>
+                    </h3>
+                    <button
+                      onClick={() => setShowAddExp(!showAddExp)}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{showAddExp ? 'Cancel' : 'Add Experience'}</span>
+                    </button>
+                  </div>
+
+                  {/* Add Experience Inline Form */}
+                  {showAddExp && (
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
+                      <h4 className="font-bold text-slate-800">Add New Experience</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          placeholder="Company name"
+                          value={newExp.company}
+                          onChange={(e) => setNewExp({ ...newExp, company: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Role title"
+                          value={newExp.title}
+                          onChange={(e) => setNewExp({ ...newExp, title: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Start Date (e.g. 2023-01)"
+                          value={newExp.start_date}
+                          onChange={(e) => setNewExp({ ...newExp, start_date: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                        <input
+                          type="text"
+                          placeholder="End Date (e.g. Present)"
+                          value={newExp.end_date}
+                          onChange={(e) => setNewExp({ ...newExp, end_date: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                      </div>
+                      <textarea
+                        placeholder="Key responsibilities and technical accomplishments..."
+                        value={newExp.description}
+                        onChange={(e) => setNewExp({ ...newExp, description: e.target.value })}
+                        rows={2}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                      />
+                      <button
+                        onClick={handleAddExperience}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs cursor-pointer"
+                      >
+                        Save Experience
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Experience List */}
+                  <div className="space-y-3">
+                    {profileForm.experience.length > 0 ? (
+                      profileForm.experience.map((exp, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all flex items-start justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">{exp.title || 'Role'}</span>
+                              <span className="text-slate-400">•</span>
+                              <span className="text-emerald-700 font-semibold">{exp.company || 'Company'}</span>
+                            </div>
+                            <span className="text-slate-400 text-[11px] block">
+                              {exp.start_date || 'Past'} – {exp.end_date || 'Present'}
+                            </span>
+                            {exp.description && (
+                              <p className="text-slate-600 text-[11px] mt-1 line-clamp-2">{exp.description}</p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExperience(idx)}
+                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
+                            title="Remove role"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                        No experience recorded. Click "Add Experience" above or upload a CV.
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div>
-                  <span className="text-slate-500 font-semibold block mb-1">Minimum Match Threshold</span>
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm font-bold text-emerald-600">{preferences?.min_match_score || 60}%</span>
-                    <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div className="bg-emerald-600 h-full" style={{ width: `${preferences?.min_match_score || 60}%` }}></div>
+                {/* Card 5: Education Credentials */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-emerald-600" />
+                      <span>Education Credentials ({profileForm.education.length})</span>
+                    </h3>
+                    <button
+                      onClick={() => setShowAddEdu(!showAddEdu)}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{showAddEdu ? 'Cancel' : 'Add Education'}</span>
+                    </button>
+                  </div>
+
+                  {/* Add Education Inline Form */}
+                  {showAddEdu && (
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
+                      <h4 className="font-bold text-slate-800">Add New Credential</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <input
+                          type="text"
+                          placeholder="Institution / University"
+                          value={newEdu.institution}
+                          onChange={(e) => setNewEdu({ ...newEdu, institution: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Degree (e.g. B.Tech CS)"
+                          value={newEdu.degree}
+                          onChange={(e) => setNewEdu({ ...newEdu, degree: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Graduation Year (e.g. 2024)"
+                          value={newEdu.graduation_year}
+                          onChange={(e) => setNewEdu({ ...newEdu, graduation_year: e.target.value })}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
+                        />
+                      </div>
+                      <button
+                        onClick={handleAddEducation}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs cursor-pointer"
+                      >
+                        Save Education
+                      </button>
                     </div>
+                  )}
+
+                  {/* Education List */}
+                  <div className="space-y-3">
+                    {profileForm.education.length > 0 ? (
+                      profileForm.education.map((edu, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all flex items-start justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-slate-900 text-sm block">{edu.degree || 'Degree'}</span>
+                            <span className="text-slate-600">{edu.institution || 'University'}</span>
+                            {edu.graduation_year && (
+                              <span className="text-slate-400 text-[11px] block">Graduation: {edu.graduation_year}</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEducation(idx)}
+                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
+                            title="Remove education"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                        No education recorded. Click "Add Education" above or upload a CV.
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                <div>
-                  <span className="text-slate-500 font-semibold block mb-1">Daily Application Limit</span>
-                  <span className="font-bold text-slate-800 text-sm">
-                    {preferences?.daily_application_limit || 10} applications/day
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-slate-500 font-semibold block mb-1">Target Locations</span>
-                  <span className="text-slate-800">{preferences?.target_countries?.join(', ') || 'Remote, India'}</span>
-                </div>
               </div>
+            </div>
+
+            {/* Bottom Save Bar */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Ensure all details accurately match your credentials before applying to jobs.
+              </span>
+              <button
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                {savingProfile ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>{savingProfile ? 'Saving & Re-scoring...' : 'Save Profile & Re-score Jobs'}</span>
+              </button>
             </div>
           </div>
         )}

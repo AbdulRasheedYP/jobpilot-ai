@@ -41,4 +41,16 @@ def update_preferences(
 
     db.commit()
     db.refresh(pref)
+
+    # Re-evaluate matches when candidate preferences change
+    try:
+        from backend.app.models.user_profile import UserProfile
+        from backend.app.services.matching_engine import batch_evaluate_jobs
+        user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
+        if user:
+            batch_evaluate_jobs(db=db, user=user, limit=50, force_reevaluate=True)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Re-evaluation after preference update failed: {e}")
+
     return pref

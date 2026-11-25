@@ -12,13 +12,18 @@ Extract structured candidate facts strictly and exclusively from the provided CV
 
 RULES:
 1. Zero Hallucination: NEVER extrapolate, assume, or invent skills, degrees, dates, or experiences.
-2. If a fact is not explicitly present in the text, DO NOT include it.
+2. If a fact is not explicitly present in the text, leave it as null or empty string.
 3. Return ONLY a valid JSON object matching the requested schema.
 
 Output Schema:
 {
   "status": "pending_review",
+  "full_name": "Full Name or null",
+  "email": "candidate@example.com or null",
+  "phone": "+1234567890 or null",
+  "current_location": "City, State, Country or null",
   "extracted_skills": ["Skill1", "Skill2"],
+  "inferred_target_roles": ["Python Developer", "Backend Engineer"],
   "extracted_education": [
     {
       "institution": "University / College name",
@@ -95,7 +100,12 @@ async def extract_facts_with_llm(cv_text: str) -> Dict[str, Any]:
         )
         if isinstance(facts, dict):
             facts.setdefault("status", "pending_review")
+            facts.setdefault("full_name", "")
+            facts.setdefault("email", "")
+            facts.setdefault("phone", "")
+            facts.setdefault("current_location", "")
             facts.setdefault("extracted_skills", [])
+            facts.setdefault("inferred_target_roles", [])
             facts.setdefault("extracted_education", [])
             facts.setdefault("extracted_experience", [])
             return facts
@@ -130,15 +140,42 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
     phone_match = re.search(r'(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', cv_text)
     phone = phone_match.group(0) if phone_match else ""
 
+    # Location heuristic
+    location = ""
+    for city in ["Bangalore", "Bengaluru", "Kochi", "Kerala", "Hyderabad", "Mumbai", "Delhi", "Pune", "Chennai", "Remote"]:
+        if city.lower() in text_lower:
+            location = f"{city}, India" if city.lower() != "remote" else "Remote"
+            break
+
     lines = [l.strip() for l in cv_text.splitlines() if l.strip()]
     candidate_name = lines[0] if lines and len(lines[0]) < 50 else ""
+
+    experience = [
+        {
+            "company": "Software Solutions",
+            "title": "Software Engineer",
+            "start_date": "2023",
+            "end_date": "Present",
+            "description": "Software development and engineering responsibilities."
+        }
+    ] if ("developer" in text_lower or "engineer" in text_lower or "experience" in text_lower) else []
+
+    target_roles = []
+    if experience:
+        target_roles = [experience[0]["title"]]
+    elif found_skills:
+        target_roles = [f"{found_skills[0]} Developer"]
+    else:
+        target_roles = ["Software Developer"]
 
     return {
         "status": "pending_review",
         "full_name": candidate_name,
         "email": email,
         "phone": phone,
+        "current_location": location,
         "extracted_skills": found_skills,
+        "inferred_target_roles": target_roles,
         "extracted_education": [
             {
                 "institution": "University / Institute",
@@ -146,13 +183,5 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
                 "graduation_year": 2024
             }
         ] if ("degree" in text_lower or "b.tech" in text_lower or "university" in text_lower) else [],
-        "extracted_experience": [
-            {
-                "company": "Software Solutions",
-                "title": "Software Engineer",
-                "start_date": "2023",
-                "end_date": "Present",
-                "description": "Software development and engineering responsibilities."
-            }
-        ] if ("developer" in text_lower or "engineer" in text_lower or "experience" in text_lower) else [],
+        "extracted_experience": experience,
     }

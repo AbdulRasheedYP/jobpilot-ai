@@ -255,26 +255,36 @@ def batch_evaluate_jobs(
     db: Session,
     user: UserProfile,
     limit: int = 50,
+    force_reevaluate: bool = False,
 ) -> Tuple[int, int, int]:
-    """Evaluates all un-evaluated jobs for the candidate profile."""
+    """Evaluates active jobs for the candidate profile. If force_reevaluate=True, re-evaluates all active jobs."""
     from sqlalchemy import select
-    # Find active jobs that have no match record for this user
-    evaluated_ids_stmt = (
-        select(JobMatch.job_id)
-        .filter(JobMatch.user_profile_id == user.id)
-    )
-    unmatched_jobs = (
-        db.query(Job)
-        .filter(Job.is_active == True, ~Job.id.in_(evaluated_ids_stmt))
-        .limit(limit)
-        .all()
-    )
+
+    if force_reevaluate:
+        target_jobs = (
+            db.query(Job)
+            .filter(Job.is_active == True)
+            .limit(limit)
+            .all()
+        )
+    else:
+        # Find active jobs that have no match record for this user
+        evaluated_ids_stmt = (
+            select(JobMatch.job_id)
+            .filter(JobMatch.user_profile_id == user.id)
+        )
+        target_jobs = (
+            db.query(Job)
+            .filter(Job.is_active == True, ~Job.id.in_(evaluated_ids_stmt))
+            .limit(limit)
+            .all()
+        )
 
     evaluated_count = 0
     eligible_count = 0
     strong_matches = 0
 
-    for job in unmatched_jobs:
+    for job in target_jobs:
         match = evaluate_and_save_match(db=db, user=user, job=job)
         evaluated_count += 1
         if match.eligibility_passed:
