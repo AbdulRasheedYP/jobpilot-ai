@@ -2,9 +2,10 @@ import uuid
 import math
 import logging
 from typing import Optional, List, Tuple
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from fastapi import HTTPException, status
+from backend.app.models.resume import Resume
 from backend.app.models.job import Job
 from backend.app.models.user_profile import UserProfile
 from backend.app.models.application import Application, ApplicationAnswer
@@ -22,9 +23,9 @@ async def prepare_application_for_job(
     job_id: uuid.UUID,
 ) -> Application:
     """
-    Orchestrates Phase 5 application preparation:
+    Prepares application using candidate's uploaded CV:
     1. Verifies target job.
-    2. Generates tailored CV strictly using verified candidate facts.
+    2. Attaches candidate's latest uploaded original CV.
     3. Prepares screening answers from profile facts.
     4. Evaluates whether mandatory information is missing (sets READY vs NEEDS_USER_INPUT).
     """
@@ -44,8 +45,22 @@ async def prepare_application_for_job(
     if existing:
         return existing
 
-    # 1. Generate tailored CV
-    tailored_resume = await generate_tailored_resume(db=db, user=user, job=job)
+    # 1. Attach candidate's uploaded original CV
+    uploaded_resume = (
+        db.query(Resume)
+        .filter(Resume.user_profile_id == user.id)
+        .order_by(desc(Resume.created_at))
+        .first()
+    )
+    resume_id = uploaded_resume.id if uploaded_resume else None
+
+    # Fallback to tailored generator only if no uploaded resume exists and provider is present (e.g. tests)
+    if not resume_id:
+        try:
+            tailored_resume = await generate_tailored_resume(db=db, user=user, job=job)
+            resume_id = tailored_resume.id
+        except Exception:
+            resume_id = None
 
     # 2. Prepare screening answers & detect missing info
     answers_data, all_ready, missing_fields = prepare_application_answers(user=user, job=job)
@@ -60,7 +75,7 @@ async def prepare_application_for_job(
         id=uuid.uuid4(),
         job_id=job.id,
         user_profile_id=user.id,
-        tailored_resume_id=tailored_resume.id,
+        tailored_resume_id=resume_id,
         status=initial_status,
         submission_method="direct",
         notes=notes,
@@ -93,7 +108,15 @@ def list_applications(
     size: int = 20,
 ) -> Tuple[List[Application], int, int]:
     """Retrieve applications with pagination and optional status filter."""
-    q = db.query(Application).filter(Application.user_profile_id == user_id)
+    q = (
+        db.query(Application)
+        .options(
+            joinedload(Application.job).joinedload(Job.source),
+            joinedload(Application.tailored_resume),
+            joinedload(Application.answers),
+        )
+        .filter(Application.user_profile_id == user_id)
+    )
 
     if app_status:
         q = q.filter(Application.status == app_status)
@@ -113,6 +136,11 @@ def get_application_by_id(
 ) -> Application:
     app_record = (
         db.query(Application)
+        .options(
+            joinedload(Application.job).joinedload(Job.source),
+            joinedload(Application.tailored_resume),
+            joinedload(Application.answers),
+        )
         .filter(Application.id == application_id, Application.user_profile_id == user_id)
         .first()
     )

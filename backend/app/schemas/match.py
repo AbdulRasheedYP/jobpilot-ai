@@ -14,6 +14,8 @@ class JobSummary(BaseModel):
     salary_max: Optional[int] = None
     currency: Optional[str] = None
     canonical_url: str
+    application_url: Optional[str] = None
+    source_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

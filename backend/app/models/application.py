@@ -45,15 +45,43 @@ class Application(Base, TimestampMixin):
     answers = relationship("ApplicationAnswer", back_populates="application", cascade="all, delete-orphan")
 
     @property
+    def resume_file_name(self) -> Optional[str]:
+        if self.tailored_resume and self.tailored_resume.file_name:
+            return self.tailored_resume.file_name
+        return None
+
+    @property
+    def source_name(self) -> Optional[str]:
+        if self.job and hasattr(self.job, "source_name"):
+            return self.job.source_name
+        return None
+
+    @property
     def tailored_resume_text(self) -> Optional[str]:
-        if self.tailored_resume and self.tailored_resume.file_path:
-            import os
-            try:
-                if os.path.exists(self.tailored_resume.file_path):
-                    with open(self.tailored_resume.file_path, "r", encoding="utf-8") as f:
-                        return f.read()
-            except Exception:
-                pass
+        if self.tailored_resume:
+            if self.tailored_resume.file_name and self.tailored_resume.file_name.lower().endswith(('.pdf', '.docx')):
+                facts = self.tailored_resume.parsed_facts or {}
+                skills = ", ".join(facts.get("technical_skills", []))
+                summary = facts.get("summary", "")
+                name = facts.get("full_name") or (self.user_profile.full_name if self.user_profile else "Candidate")
+                email = facts.get("email") or (self.user_profile.email if self.user_profile else "")
+                phone = facts.get("phone") or (self.user_profile.phone if self.user_profile else "")
+                return (
+                    f"ATTACHED CANDIDATE RESUME: {self.tailored_resume.file_name}\n"
+                    f"Candidate: {name}\n"
+                    f"Email: {email}\n"
+                    f"Phone: {phone}\n"
+                    f"Verified Skills: {skills}\n\n"
+                    f"Summary:\n{summary if summary else 'Candidate original verified CV attached directly to application.'}"
+                )
+            if self.tailored_resume.file_path:
+                import os
+                try:
+                    if os.path.exists(self.tailored_resume.file_path):
+                        with open(self.tailored_resume.file_path, "r", encoding="utf-8") as f:
+                            return f.read()
+                except Exception:
+                    pass
         return None
 
 

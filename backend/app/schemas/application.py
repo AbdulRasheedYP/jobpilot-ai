@@ -40,6 +40,8 @@ class ApplicationResponse(BaseModel):
     job_id: uuid.UUID
     user_profile_id: uuid.UUID
     tailored_resume_id: Optional[uuid.UUID] = None
+    resume_file_name: Optional[str] = None
+    source_name: Optional[str] = None
     status: ApplicationStatus
     submission_method: Optional[str] = None
     submitted_at: Optional[datetime] = None

@@ -28,7 +28,8 @@ import {
   Filter,
   X,
   Copy,
-  ChevronRight
+  ChevronRight,
+  Globe
 } from 'lucide-react';
 
 const API_BASE = '/api/v1';
@@ -447,8 +448,15 @@ export default function App() {
   };
 
   const handlePrepareApplication = async (jobId) => {
+    // Check if user has uploaded a CV first
+    if (!resumes || resumes.length === 0) {
+      showToast('Please upload your CV in the Profile & CV Center first!', 'error');
+      setActiveTab('profile');
+      return;
+    }
+
     setPreparingJobId(jobId);
-    showToast('Generating tailored ATS resume & screening Q&A...', 'info');
+    showToast('Attaching your uploaded CV and preparing application...', 'info');
     try {
       const res = await authFetch('/applications/prepare', {
         method: 'POST',
@@ -456,7 +464,7 @@ export default function App() {
       });
       if (res && res.ok) {
         const preparedApp = await res.json();
-        showToast('Application prepared! Opening tailored CV for review...', 'success');
+        showToast('Application ready with your uploaded CV! Review details before submitting.', 'success');
         const updatedList = await fetchApplications();
         fetchDashboard();
         setActiveTab('applications');
@@ -465,7 +473,7 @@ export default function App() {
         setModalTab('resume');
       } else {
         const err = await res.json();
-        showToast(err.detail?.message || 'Preparation failed', 'error');
+        showToast(err.detail?.message || err.detail || 'Preparation failed', 'error');
       }
     } catch (e) {
       showToast('Error: ' + e.message, 'error');
@@ -817,18 +825,37 @@ export default function App() {
                       className="p-5 rounded-xl border border-slate-200 hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-bold text-slate-900 text-base">{job.title}</h3>
                           {job.is_remote && (
                             <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
                               Remote
                             </span>
                           )}
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                            <Globe className="w-3 h-3 text-emerald-600" />
+                            <span>Source: {job.source_name || 'Direct Portal'}</span>
+                          </span>
                         </div>
-                        <p className="text-xs text-slate-600 mt-1 flex items-center gap-3">
+                        <p className="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-3">
                           <span className="font-semibold text-slate-800">{job.company_name}</span>
                           <span>•</span>
                           <span>{job.location || 'Remote'}</span>
+                          {(job.application_url || job.canonical_url) && (
+                            <>
+                              <span>•</span>
+                              <a
+                                href={job.application_url || job.canonical_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-slate-500 hover:text-emerald-600 transition-colors font-medium"
+                                title="Open original job posting"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Visit {job.source_name || 'Portal'}</span>
+                              </a>
+                            </>
+                          )}
                         </p>
 
                         {match && match.decision_reasons && match.decision_reasons.length > 0 && (
@@ -865,16 +892,17 @@ export default function App() {
                         <button
                           onClick={() => handlePrepareApplication(job.id)}
                           disabled={isPreparingThis}
-                          className="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                          className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                         >
                           {isPreparingThis ? (
                             <>
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>Tailoring ATS CV...</span>
+                              <span>Attaching CV...</span>
                             </>
                           ) : (
                             <>
-                              <span>Prepare CV</span>
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Apply with Uploaded CV</span>
                               <ChevronRight className="w-3.5 h-3.5" />
                             </>
                           )}
@@ -920,13 +948,24 @@ export default function App() {
                     applications.map((app) => {
                       const jobTitle = app.job?.title || 'Software Developer';
                       const company = app.job?.company_name || 'Employer';
+                      const sourceName = app.source_name || app.job?.source_name || 'Portal';
                       const receiptCode = app.confirmation_evidence?.receipt_code || '—';
+                      const cvName = app.resume_file_name || (resumes && resumes[0]?.file_name) || 'Uploaded CV';
 
                       return (
                         <tr key={app.id} className="hover:bg-slate-50/60 transition-colors">
                           <td className="py-4 px-4 font-bold text-slate-900">
-                            <div>{jobTitle}</div>
-                            <div className="text-[11px] text-slate-500 font-normal">{company}</div>
+                            <div className="flex items-center gap-2">
+                              <span>{jobTitle}</span>
+                              <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                                🌐 {sourceName}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-normal flex items-center gap-2 mt-0.5">
+                              <span>{company}</span>
+                              <span>•</span>
+                              <span className="text-emerald-700 font-medium">CV: {cvName}</span>
+                            </div>
                           </td>
                           <td className="py-4 px-4">
                             <span
@@ -953,7 +992,7 @@ export default function App() {
                           </td>
                           <td className="py-4 px-4 text-right">
                             <div className="flex items-center justify-end space-x-2">
-                              {/* View Tailored CV & Answers Button */}
+                              {/* View Application & Uploaded CV Button */}
                               <button
                                 onClick={() => {
                                   setViewingApp(app);
@@ -962,7 +1001,7 @@ export default function App() {
                                 className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                               >
                                 <Eye className="w-3 h-3 text-slate-600" />
-                                <span>View Tailored CV</span>
+                                <span>View Application</span>
                               </button>
 
                               {(app.status === 'READY' || app.status === 'PREPARED') && (
@@ -982,7 +1021,7 @@ export default function App() {
                   ) : (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-slate-500">
-                        No applications prepared yet. Go to "Discovered Jobs" to tailor a CV!
+                        No applications prepared yet. Go to "Discovered Jobs" to apply with your uploaded CV!
                       </td>
                     </tr>
                   )}
@@ -1222,7 +1261,7 @@ export default function App() {
       </div>
 
       {/* ============================================================== */}
-      {/* MODAL: VIEW TAILORED ATS CV & SCREENING ANSWERS */}
+      {/* MODAL: VIEW APPLICATION DETAILS (USING UPLOADED CV) */}
       {/* ============================================================== */}
       {viewingApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
@@ -1230,9 +1269,9 @@ export default function App() {
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-200 flex items-start justify-between bg-slate-50/50">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-lg font-bold text-slate-900">
-                    {viewingApp.job?.title || 'Tailored Application'}
+                    {viewingApp.job?.title || 'Job Application'}
                   </h3>
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -1245,17 +1284,35 @@ export default function App() {
                   >
                     {viewingApp.status.replace('_', ' ')}
                   </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <Globe className="w-3 h-3 text-emerald-600" />
+                    <span>Source: {viewingApp.source_name || viewingApp.job?.source_name || 'Direct Portal'}</span>
+                  </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
                   <Building className="w-3.5 h-3.5 text-slate-400" />
                   <span className="font-semibold text-slate-700">{viewingApp.job?.company_name || 'Employer'}</span>
                   <span>•</span>
                   <span>{viewingApp.job?.location || 'Remote'}</span>
+                  {(viewingApp.job?.application_url || viewingApp.job?.canonical_url) && (
+                    <>
+                      <span>•</span>
+                      <a
+                        href={viewingApp.job?.application_url || viewingApp.job?.canonical_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-medium"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>View Portal Posting</span>
+                      </a>
+                    </>
+                  )}
                 </p>
               </div>
               <button
                 onClick={() => setViewingApp(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1271,7 +1328,7 @@ export default function App() {
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Tailored ATS Resume
+                Attached Uploaded CV
               </button>
               <button
                 onClick={() => setModalTab('answers')}
@@ -1289,22 +1346,40 @@ export default function App() {
             <div className="p-6 overflow-y-auto flex-1 bg-slate-50/40">
               {modalTab === 'resume' && (
                 <div className="space-y-4">
+                  {/* Attached File Banner */}
+                  <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <FileCheck className="w-5 h-5 text-emerald-600" />
+                      <div>
+                        <div className="text-xs font-bold text-emerald-950">
+                          {viewingApp.resume_file_name || (resumes && resumes[0]?.file_name) || 'Uploaded Resume Attached'}
+                        </div>
+                        <div className="text-[11px] text-emerald-700">
+                          Using your verified original uploaded CV file (No AI embellishments)
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-200 uppercase tracking-wide">
+                      Original CV
+                    </span>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Generated Plain Text ATS Format
+                      CV Details & Verified Facts
                     </span>
                     <button
                       onClick={() => handleCopyResume(viewingApp.tailored_resume_text)}
                       className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+                      <span>{copied ? 'Copied!' : 'Copy Summary'}</span>
                     </button>
                   </div>
 
                   <pre className="p-4 rounded-xl bg-white border border-slate-200 text-xs font-mono whitespace-pre-wrap text-slate-800 leading-relaxed shadow-inner max-h-96 overflow-y-auto">
                     {viewingApp.tailored_resume_text ||
-                      `Candidate Name: ${profile?.full_name || 'Candidate'}\nEmail: ${profile?.email}\nTarget Role: ${viewingApp.job?.title || 'Software Developer'}\n\nPROFESSIONAL SUMMARY\nDedicated Software Engineer with proven skills in ${profile?.skills?.join(', ') || 'Python, FastAPI, React'}.\n\nKEY SKILLS\n${profile?.skills?.join(', ')}\n\nEDUCATION\n- B.Tech in Computer Science`}
+                      `Candidate Name: ${profile?.full_name || 'Candidate'}\nEmail: ${profile?.email}\nPhone: ${profile?.phone || 'Not provided'}\nAttached File: ${viewingApp.resume_file_name || (resumes && resumes[0]?.file_name) || 'arjun nair.pdf'}\n\nKEY VERIFIED SKILLS\n${profile?.skills?.join(', ') || 'Python, FastAPI, React'}\n\nSTATUS\nYour verified uploaded CV document will be transmitted directly with this application.`}
                   </pre>
                 </div>
               )}
@@ -1312,7 +1387,7 @@ export default function App() {
               {modalTab === 'answers' && (
                 <div className="space-y-3">
                   <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-2">
-                    Prepared Screening Form Answers
+                    Application Screening Form Answers
                   </span>
                   {viewingApp.answers && viewingApp.answers.length > 0 ? (
                     viewingApp.answers.map((ans, idx) => (
@@ -1334,8 +1409,9 @@ export default function App() {
 
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-white">
-              <span className="text-xs text-slate-500">
-                Verified with Zero-Hallucination Policy
+              <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Verified with Zero-Hallucination Policy</span>
               </span>
               <div className="flex items-center space-x-2">
                 <button

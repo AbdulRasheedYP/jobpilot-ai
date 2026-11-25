@@ -2,7 +2,7 @@ import uuid
 import math
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from backend.app.api.deps import get_db, get_current_user
 from backend.app.models.user_profile import UserProfile
@@ -43,7 +43,13 @@ def list_matches(
     total = q.count()
     pages = math.ceil(total / size) if total > 0 else 1
     offset = (page - 1) * size
-    items = q.order_by(desc(JobMatch.overall_score)).offset(offset).limit(size).all()
+    items = (
+        q.options(joinedload(JobMatch.job).joinedload(Job.source))
+        .order_by(desc(JobMatch.overall_score))
+        .offset(offset)
+        .limit(size)
+        .all()
+    )
 
     return MatchListResponse(
         items=items,
@@ -63,6 +69,7 @@ def get_match_detail(
     """Retrieve deep-dive breakdown of a specific match score and decision reasons."""
     match = (
         db.query(JobMatch)
+        .options(joinedload(JobMatch.job).joinedload(Job.source))
         .filter(JobMatch.id == match_id, JobMatch.user_profile_id == current_user.id)
         .first()
     )

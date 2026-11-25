@@ -34,6 +34,7 @@ class JobSourceCreate(BaseModel):
 class JobResponse(BaseModel):
     id: uuid.UUID
     source_id: uuid.UUID
+    source_name: Optional[str] = None
     external_id: str
     company_name: str
     title: str

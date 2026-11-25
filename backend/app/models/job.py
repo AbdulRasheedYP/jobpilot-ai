@@ -88,3 +88,19 @@ class Job(Base):
     company = relationship("Company", back_populates="jobs")
     matches = relationship("JobMatch", back_populates="job", cascade="all, delete-orphan")
     applications = relationship("Application", back_populates="job")
+
+    @property
+    def source_name(self) -> str:
+        if self.source and self.source.name:
+            return self.source.name
+        if self.canonical_url or self.application_url:
+            from urllib.parse import urlparse
+            url = self.canonical_url or self.application_url
+            try:
+                domain = urlparse(url).netloc.replace("www.", "")
+                if domain:
+                    return domain.capitalize()
+            except Exception:
+                pass
+        return "Portal"
+

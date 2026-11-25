@@ -14,8 +14,7 @@ async def lifespan(app: FastAPI):
     # Auto-seed initial user and sources if empty (Single-User Personal Agent)
     db = SessionLocal()
     try:
-        from backend.app.models.user_profile import UserProfile
-        from backend.app.models.job_preference import JobPreference
+        from backend.app.models.user_profile import UserProfile, JobPreference
         from backend.app.models.job import JobSource
         from backend.app.core.security import get_password_hash
 
@@ -26,11 +25,8 @@ async def lifespan(app: FastAPI):
                 email="candidate@jobpilot.ai",
                 hashed_password=get_password_hash("password123"),
                 full_name="Candidate User",
-                current_title="Software Engineer",
+                current_location="Bangalore, India",
                 skills=["Python", "FastAPI", "React", "PostgreSQL", "Docker", "Git"],
-                experience_years=2.0,
-                education="B.Tech Computer Science",
-                location="Bangalore, India",
                 sponsorship_required=False,
                 notice_period_days=0,
             )
@@ -41,14 +37,15 @@ async def lifespan(app: FastAPI):
                 id=uuid.uuid4(),
                 user_profile_id=user.id,
                 target_roles=["Software Engineer", "Python Developer", "Full Stack Developer", "Backend Developer"],
+                target_countries=["India", "Remote"],
+                work_modes=["remote", "hybrid", "onsite"],
+                experience_levels=["fresher", "junior"],
                 min_salary=500000,
-                preferred_currency="INR",
-                locations=["Bangalore", "Kochi", "Remote"],
-                remote_only=False,
-                excluded_companies=[],
-                min_match_score=60.0,
+                currency="INR",
+                min_match_score=60,
                 auto_apply_enabled=True,
                 daily_application_limit=10,
+                excluded_companies=[],
             )
             db.add(pref)
 

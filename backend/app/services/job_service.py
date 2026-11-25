@@ -2,7 +2,7 @@ import uuid
 import math
 import logging
 from typing import Optional, List, Dict, Any, Tuple
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc
 from fastapi import HTTPException, status
 from backend.app.models.job import Job, JobSource, Company
@@ -211,7 +211,7 @@ def list_jobs(
     source_id: Optional[uuid.UUID] = None,
 ) -> Tuple[List[Job], int, int]:
     """Retrieve jobs with pagination and optional search filters."""
-    q = db.query(Job).filter(Job.is_active == True)
+    q = db.query(Job).options(joinedload(Job.source)).filter(Job.is_active == True)
 
     if is_remote is not None:
         q = q.filter(Job.is_remote == is_remote)
@@ -240,7 +240,7 @@ def list_jobs(
 
 
 def get_job_by_id(db: Session, job_id: uuid.UUID) -> Job:
-    job = db.query(Job).filter(Job.id == job_id).first()
+    job = db.query(Job).options(joinedload(Job.source)).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
