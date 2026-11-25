@@ -45,7 +45,7 @@ def list_matches(
     offset = (page - 1) * size
     items = (
         q.options(joinedload(JobMatch.job).joinedload(Job.source))
-        .order_by(desc(JobMatch.overall_score))
+        .order_by(desc(JobMatch.eligibility_passed), desc(JobMatch.overall_score))
         .offset(offset)
         .limit(size)
         .all()

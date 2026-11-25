@@ -96,6 +96,10 @@ async def save_and_parse_resume(
         if clean_roles:
             pref.target_roles = clean_roles
 
+    # Clear stale job matches from previous CV so candidate profile is evaluated cleanly
+    from backend.app.models.job_match import JobMatch
+    db.query(JobMatch).filter(JobMatch.user_profile_id == user.id).delete()
+
     # Create Resume DB record
     resume = Resume(
         id=uuid.uuid4(),

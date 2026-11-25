@@ -183,10 +183,11 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
     sections[current_sec] = []
 
     SECTION_HEADERS = [
-        "professional summary", "summary", "technical skills", "skills",
-        "featured engineering projects", "projects", "featured projects",
+        "professional summary", "summary", "technical skills", "skills", "core skills", "key skills",
+        "areas of expertise", "competencies", "core competencies",
+        "featured engineering projects", "projects", "featured projects", "academic projects",
         "technical apprenticeship & experience", "apprenticeship", "work experience",
-        "professional experience", "experience",
+        "professional experience", "experience", "employment history",
         "education & training", "education", "academic background", "languages", "certifications",
     ]
 
@@ -204,26 +205,39 @@ def deterministic_extract_fallback(cv_text: str) -> Dict[str, Any]:
         sections[current_sec].append(l)
 
     # 5. Skills extraction
-    skills_lines = sections.get("technical skills", []) or sections.get("skills", [])
-    skills_text = " ".join(skills_lines)
-    clean_skills_text = re.sub(r"\(.*?\)", "", skills_text)
+    skills_lines = (
+        sections.get("technical skills", [])
+        or sections.get("skills", [])
+        or sections.get("core skills", [])
+        or sections.get("key skills", [])
+        or sections.get("core competencies", [])
+        or sections.get("competencies", [])
+        or sections.get("areas of expertise", [])
+    )
+    skills_text = " \n ".join(skills_lines)
+    clean_skills_text = skills_text
 
     CATEGORY_PREFIXES = [
         "rpa & orchestration", "programming", "databases", "web development", "tools",
         "domain", "backend development", "backend", "frontend development", "frontend",
         "database & data management", "ai & llm integration", "cloud & devops", "testing & tools",
-        "testing", "cloud",
+        "testing", "cloud", "mis & reporting", "data analysis", "advanced excel",
+        "analytics & bi", "analytics", "bi & reporting", "professional skills", "core skills",
+        "technical skills", "programming languages", "frameworks & libraries", "tools & technologies",
     ]
     for cat in CATEGORY_PREFIXES:
-        clean_skills_text = re.sub(r"\b" + re.escape(cat) + r"[:\s]+", ", ", clean_skills_text, flags=re.IGNORECASE)
+        clean_skills_text = re.sub(r"(?i)\b" + re.escape(cat) + r"[:\s]+", ", ", clean_skills_text)
+
+    # Convert parentheses to commas to extract nested tools like Power BI (DAX, Power Query)
+    clean_skills_text = re.sub(r"[()]", ", ", clean_skills_text)
 
     skills = []
     for chunk in re.split(r"[,;•|▪\n]", clean_skills_text):
         c = chunk.strip(" -*•▪\t\u00a0()")
-        if c and 1 < len(c) < 32:
+        if c and 1 < len(c) < 35:
             if not any(j in c.lower() for j in [
                 "credit union", "banking", "payment", "transaction", "fraud",
-                "reconciliation", "member data", "development", "management", "integration",
+                "reconciliation", "member data",
             ]):
                 if not any(cs.lower() == c.lower() for cs in skills):
                     skills.append(c)

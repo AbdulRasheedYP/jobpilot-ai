@@ -114,6 +114,7 @@ async def execute_agent_cycle(
         if run_type in ["DISCOVERY", "FULL_CYCLE"]:
             log_event(db, run.id, "DISCOVERY", "DISCOVERY_STARTED", f"Scanning enabled job sources (target up to {cycle_limit} jobs)...")
             sources = db.query(JobSource).filter(JobSource.is_enabled == True).all()
+            sources = sorted(sources, key=lambda s: 0 if s.code == "live_aggregator" else 1)
             search_terms = clean_roles
 
             new_jobs = 0

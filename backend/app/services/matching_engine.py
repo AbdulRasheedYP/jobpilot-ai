@@ -38,12 +38,15 @@ def check_eligibility(
     target_roles = [r.lower() for r in (pref.target_roles or ["python developer"])]
     job_title_lower = job.title.lower()
 
-    # Extract keywords from title and target roles
+    # Extract keywords from title and target roles with word boundaries
+    def _word_in_text(w: str, text: str) -> bool:
+        return bool(re.search(r"\b" + re.escape(w) + r"\b", text))
+
     title_matches = any(
-        any(word in job_title_lower for word in target_role.split() if len(word) > 2)
+        any(_word_in_text(word, job_title_lower) for word in target_role.split() if len(word) > 2)
         for target_role in target_roles
     )
-    if not title_matches and not any(r in job_title_lower for r in ["software", "developer", "engineer", "python", "backend"]):
+    if not title_matches and not any(_word_in_text(r, job_title_lower) for r in ["software", "developer", "engineer", "python", "backend", "frontend", "fullstack", "programmer"]):
         details["role_suitability"] = "FAIL"
         reasons.append(f"Role '{job.title}' does not match target roles ({', '.join(pref.target_roles)}).")
         return False, details, reasons
@@ -121,14 +124,24 @@ def calculate_match_score(
     matched_skills = []
     missing_skills = []
 
+    def _is_skill_match(us: str, js: str) -> bool:
+        if us == js:
+            return True
+        if len(js) >= 3 and re.search(r"\b" + re.escape(js) + r"\b", us):
+            return True
+        if len(us) >= 3 and re.search(r"\b" + re.escape(us) + r"\b", js):
+            return True
+        return False
+
     # Check required skills from job tags/metadata
     if job_skills:
         for js in job_skills:
-            if any(us == js or us in js or js in us for us in user_skills):
+            if any(_is_skill_match(us, js) for us in user_skills):
                 matched_skills.append(js)
             else:
                 missing_skills.append(js)
-        skill_ratio = len(matched_skills) / len(job_skills)
+        denominator = max(len(job_skills), 3) if len(job_skills) < 3 else len(job_skills)
+        skill_ratio = len(matched_skills) / denominator
     else:
         # Fallback to searching user skills in job description
         for us in user_skills:
@@ -136,7 +149,7 @@ def calculate_match_score(
                 matched_skills.append(us)
             else:
                 missing_skills.append(us)
-        skill_ratio = (len(matched_skills) / len(user_skills)) if user_skills else 0.5
+        skill_ratio = (len(matched_skills) / len(user_skills)) if user_skills else 0.0
 
     skills_score = round(min(1.0, skill_ratio) * 35.0, 1)
     if matched_skills:
@@ -148,15 +161,17 @@ def calculate_match_score(
     title_lower = job.title.lower()
     target_roles = [r.lower() for r in (pref.target_roles or ["Python Developer"])]
 
-    role_ratio = 0.5  # default baseline
+    role_ratio = 0.0  # default to 0.0 if role does not align with any target role
     for tr in target_roles:
         if tr == title_lower:
             role_ratio = 1.0
             break
-        elif all(word in title_lower for word in tr.split()):
+        elif all(re.search(r"\b" + re.escape(w) + r"\b", title_lower) for w in tr.split()):
             role_ratio = max(role_ratio, 0.9)
-        elif any(word in title_lower for word in tr.split() if len(word) > 3):
+        elif any(re.search(r"\b" + re.escape(w) + r"\b", title_lower) for w in tr.split() if len(w) > 3 and w not in ["full", "lead"]):
             role_ratio = max(role_ratio, 0.75)
+        elif any(re.search(r"\b" + re.escape(w) + r"\b", title_lower) for w in ["software", "developer", "engineer", "programmer", "python", "backend"] if w in tr):
+            role_ratio = max(role_ratio, 0.3)
 
     role_score = round(role_ratio * 25.0, 1)
     reasons.append(f"Role title alignment: {job.title} ({role_score}/25 pts)")
@@ -231,6 +246,16 @@ def evaluate_and_save_match(
     passed, eligibility_details, elig_reasons = check_eligibility(user=user, pref=pref, job=job)
     score_data = calculate_match_score(user=user, pref=pref, job=job)
 
+    # Hard eligibility gate: cap score for ineligible jobs so they never appear as Strong Matches
+    overall_score = score_data["overall_score"]
+    if not passed:
+        if eligibility_details.get("role_suitability") == "FAIL":
+            overall_score = min(overall_score, 25.0)
+        elif eligibility_details.get("company_exclusion") == "FAIL":
+            overall_score = 0.0
+        else:
+            overall_score = min(overall_score, 45.0)
+
     # Combine eligibility notes with match reasons
     combined_reasons = elig_reasons + score_data["decision_reasons"]
 
@@ -247,7 +272,7 @@ def evaluate_and_save_match(
             user_profile_id=user.id,
             eligibility_passed=passed,
             eligibility_details=eligibility_details,
-            overall_score=score_data["overall_score"],
+            overall_score=overall_score,
             score_breakdown=score_data["score_breakdown"],
             matched_skills=score_data["matched_skills"],
             missing_skills=score_data["missing_skills"],
@@ -257,7 +282,7 @@ def evaluate_and_save_match(
     else:
         match.eligibility_passed = passed
         match.eligibility_details = eligibility_details
-        match.overall_score = score_data["overall_score"]
+        match.overall_score = overall_score
         match.score_breakdown = score_data["score_breakdown"]
         match.matched_skills = score_data["matched_skills"]
         match.missing_skills = score_data["missing_skills"]

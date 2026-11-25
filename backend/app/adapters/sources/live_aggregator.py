@@ -24,8 +24,10 @@ class LiveJobAggregatorAdapter(JobSourceAdapter):
         location: Optional[str] = None,
         page: int = 1,
     ) -> List[JobPayload]:
-        # Run scraping in threadpool to prevent blocking the async event loop
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
             self._scrape_sync,
