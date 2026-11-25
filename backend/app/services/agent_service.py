@@ -75,13 +75,29 @@ async def execute_agent_cycle(
         raise HTTPException(status_code=404, detail="Agent run not found")
 
     pref = get_or_create_preferences(db, user.id)
+    clean_roles = [r.strip() for r in (pref.target_roles or []) if r and r.strip()]
+    clean_locations = [c.strip() for c in (pref.target_countries or []) if c and c.strip()]
+
+    if not clean_roles:
+        run.status = AgentRunStatus.FAILED
+        run.error_message = "Target Roles are required to run the agent cycle."
+        db.commit()
+        log_event(db, run.id, "INIT", "RUN_FAILED", run.error_message)
+        raise HTTPException(status_code=400, detail=run.error_message)
+
+    if not clean_locations:
+        run.status = AgentRunStatus.FAILED
+        run.error_message = "Target Search Locations are required to run the agent cycle."
+        db.commit()
+        log_event(db, run.id, "INIT", "RUN_FAILED", run.error_message)
+        raise HTTPException(status_code=400, detail=run.error_message)
 
     try:
         # --- Stage 1: Job Discovery ---
         if run_type in ["DISCOVERY", "FULL_CYCLE"]:
             log_event(db, run.id, "DISCOVERY", "DISCOVERY_STARTED", "Scanning enabled job sources...")
             sources = db.query(JobSource).filter(JobSource.is_enabled == True).all()
-            search_terms = pref.target_roles or ["Python Developer"]
+            search_terms = clean_roles
 
             new_jobs = 0
             for src in sources:

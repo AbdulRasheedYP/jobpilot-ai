@@ -50,3 +50,55 @@ async def test_agent_full_cycle_run(async_client: AsyncClient, auth_headers: dic
     stop_resp = await async_client.post(f"/api/v1/agent/runs/{run_id}/stop", headers=auth_headers)
     assert stop_resp.status_code == 200
     assert stop_resp.json()["status"] == AgentRunStatus.STOPPED.value
+
+
+@pytest.mark.asyncio
+async def test_agent_run_requires_target_roles(async_client: AsyncClient, auth_headers: dict):
+    # Set target_roles to empty list
+    await async_client.put(
+        "/api/v1/preferences",
+        headers=auth_headers,
+        json={"target_roles": [], "target_countries": ["India"]},
+    )
+
+    # Attempt to start agent -> 400 Bad Request
+    resp = await async_client.post(
+        "/api/v1/agent/run",
+        headers=auth_headers,
+        json={"run_type": "FULL_CYCLE"},
+    )
+    assert resp.status_code == 400
+    assert "Target Roles are required" in resp.json()["detail"]
+
+    # Restore preferences
+    await async_client.put(
+        "/api/v1/preferences",
+        headers=auth_headers,
+        json={"target_roles": ["Python Developer"], "target_countries": ["India"]},
+    )
+
+
+@pytest.mark.asyncio
+async def test_agent_run_requires_target_locations(async_client: AsyncClient, auth_headers: dict):
+    # Set target_countries to empty list
+    await async_client.put(
+        "/api/v1/preferences",
+        headers=auth_headers,
+        json={"target_roles": ["Python Developer"], "target_countries": []},
+    )
+
+    # Attempt to start agent -> 400 Bad Request
+    resp = await async_client.post(
+        "/api/v1/agent/run",
+        headers=auth_headers,
+        json={"run_type": "FULL_CYCLE"},
+    )
+    assert resp.status_code == 400
+    assert "Target Search Locations are required" in resp.json()["detail"]
+
+    # Restore preferences
+    await async_client.put(
+        "/api/v1/preferences",
+        headers=auth_headers,
+        json={"target_roles": ["Python Developer"], "target_countries": ["India", "Remote"]},
+    )

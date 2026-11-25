@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
 from backend.app.api.deps import get_db, get_current_user
 from backend.app.models.user_profile import UserProfile
@@ -33,8 +33,25 @@ async def start_run(
 ):
     """
     Launch an autonomous agent cycle (Discovery -> Matching -> Prep -> Auto-apply).
-    Executes in background and records execution metrics.
+    Validates that candidate has configured Target Roles and Target Locations.
     """
+    from backend.app.services.preference_service import get_or_create_preferences
+    pref = get_or_create_preferences(db, current_user.id)
+    
+    clean_roles = [r.strip() for r in (pref.target_roles or []) if r and r.strip()]
+    if not clean_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target Roles are required to start the agent cycle. Please add at least one target role in your Profile & CV Center.",
+        )
+    
+    clean_locations = [c.strip() for c in (pref.target_countries or []) if c and c.strip()]
+    if not clean_locations:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target Search Locations are required to start the agent cycle. Please add at least one location in your Profile & CV Center.",
+        )
+
     run_type = payload.run_type if payload and payload.run_type else "FULL_CYCLE"
     run = agent_service.create_agent_run(db=db, user=current_user)
     

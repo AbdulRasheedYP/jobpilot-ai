@@ -893,16 +893,41 @@ export default function App() {
   };
 
   const handleTriggerAgent = async () => {
-    showToast('Triggering autonomous cycle in background...', 'info');
+    // Required Validation: Target Roles & Locations must not be empty
+    const cleanRoles = (prefForm.target_roles || []).filter((r) => r && r.trim());
+    if (cleanRoles.length === 0) {
+      showToast('Target Roles are required before starting the Agent! Please add at least one role.', 'warning');
+      setActiveTab('profile');
+      setProfileSection('preferences');
+      return;
+    }
+
+    const cleanLocations = (prefForm.target_countries || []).filter((c) => c && c.trim());
+    if (cleanLocations.length === 0) {
+      showToast('Target Search Locations are required before starting the Agent! Please add at least one location.', 'warning');
+      setActiveTab('profile');
+      setProfileSection('preferences');
+      return;
+    }
+
+    showToast('Starting Agent cycle (discovering & evaluating up to 10 jobs)...', 'info');
     try {
       const res = await authFetch('/agent/run', {
         method: 'POST',
         body: JSON.stringify({ run_type: 'FULL_CYCLE' }),
       });
       if (res && res.ok) {
-        showToast('Autonomous cycle started!', 'success');
+        showToast('Autonomous cycle started! Discovered & scored up to 10 jobs.', 'success');
         fetchDashboard();
         fetchRunsAndLogs();
+        fetchJobs();
+      } else {
+        const errData = await res?.json().catch(() => ({}));
+        showToast(errData.detail || 'Failed to start agent cycle.', 'error');
+        if (errData.detail && (errData.detail.includes('Target Roles') || errData.detail.includes('Target Search Locations') || errData.detail.includes('Profile'))) {
+          setActiveTab('profile');
+          setProfileSection('preferences');
+        }
       }
     } catch (e) {
       showToast('Error triggering agent: ' + e.message, 'error');
@@ -1743,19 +1768,39 @@ export default function App() {
                 {profileSection === 'preferences' && (
                   <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
                     <div className="border-b border-slate-100 pb-3">
-                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <Sliders className="w-5 h-5 text-emerald-600" />
-                        <span>Target Roles, Locations & Preferences</span>
-                      </h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <Sliders className="w-5 h-5 text-emerald-600" />
+                          <span>Target Roles, Locations & Preferences</span>
+                        </h3>
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+                          * Roles & Locations Required for Agent
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-500 mt-1">
                         Select from comprehensive IT roles and locations with live keyword search filtering.
                       </p>
                     </div>
 
+                    {/* Validation Warning Alert if either is empty */}
+                    {(!prefForm.target_roles.length || !prefForm.target_countries.length) && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>
+                          <strong>Configuration Needed:</strong> Both <strong>Target Roles</strong> and <strong>Target Locations</strong> are required before starting the Agent cycle.
+                        </span>
+                      </div>
+                    )}
+
                     {/* 1. Target Roles with Master IT Options & Live Search */}
                     <div className="space-y-2.5 text-xs">
                       <div className="flex items-center justify-between">
-                        <label className="font-bold text-slate-800">Target Roles ({prefForm.target_roles.length})</label>
+                        <div className="flex items-center gap-2">
+                          <label className="font-bold text-slate-800">Target Roles ({prefForm.target_roles.length})</label>
+                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                            Required *
+                          </span>
+                        </div>
                         <span className="text-slate-400 text-[11px]">Type below to filter IT roles</span>
                       </div>
 
@@ -1861,7 +1906,12 @@ export default function App() {
                     {/* 3. Target Search Locations with Kerala Hubs & Live Search */}
                     <div className="space-y-2.5 text-xs pt-2 border-t border-slate-100">
                       <div className="flex items-center justify-between">
-                        <label className="font-bold text-slate-800">Target Search Locations ({prefForm.target_countries.length})</label>
+                        <div className="flex items-center gap-2">
+                          <label className="font-bold text-slate-800">Target Search Locations ({prefForm.target_countries.length})</label>
+                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                            Required *
+                          </span>
+                        </div>
                         <span className="text-slate-400 text-[11px]">Type below to filter locations</span>
                       </div>
 
