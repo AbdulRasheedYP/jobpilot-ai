@@ -83,6 +83,20 @@ export default function App() {
   const [newExp, setNewExp] = useState({ company: '', title: '', start_date: '', end_date: '', description: '' });
   const [newEdu, setNewEdu] = useState({ institution: '', degree: '', graduation_year: '' });
 
+  const [metaOptions, setMetaOptions] = useState({
+    roles: [],
+    skills: [],
+    locations: [],
+    work_modes: ['remote', 'hybrid', 'onsite'],
+    date_freshness: [
+      { days: 1, label: 'Today (Past 24 Hours)' },
+      { days: 3, label: 'Past 3 Days' },
+      { days: 7, label: 'Past 7 Days (Recommended)' },
+      { days: 14, label: 'Past 14 Days' },
+      { days: 30, label: 'Past 30 Days' },
+    ],
+  });
+
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast({ message: '', type: '' }), 4000);
@@ -101,6 +115,7 @@ export default function App() {
           fetchPreferences(),
           fetchProfile(),
           fetchResumes(),
+          fetchMetaOptions(),
         ]);
       }
     };
@@ -121,11 +136,25 @@ export default function App() {
       fetchProfile();
       fetchPreferences();
       fetchResumes();
+      fetchMetaOptions();
     } else if (activeTab === 'agent') {
       fetchPreferences();
       fetchRunsAndLogs();
+      fetchMetaOptions();
     }
   }, [activeTab]);
+
+  const fetchMetaOptions = async () => {
+    try {
+      const res = await authFetch('/meta/options');
+      if (res && res.ok) {
+        const data = await res.json();
+        setMetaOptions(data);
+      }
+    } catch (e) {
+      console.error('Fetch meta options error:', e);
+    }
+  };
 
   const fetchCurrentUser = async () => {
     try {
@@ -709,6 +738,7 @@ export default function App() {
 
         {activeTab === 'profile' && (
           <ProfileTab
+            metaOptions={metaOptions}
             profileForm={profileForm}
             setProfileForm={setProfileForm}
             resumes={resumes}
@@ -737,6 +767,7 @@ export default function App() {
 
         {activeTab === 'agent' && (
           <AgentSettingsTab
+            metaOptions={metaOptions}
             prefForm={prefForm}
             setPrefForm={setPrefForm}
             handleSavePreferences={handleSavePreferences}

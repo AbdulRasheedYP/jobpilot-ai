@@ -45,6 +45,22 @@ def update_preferences(
     db.commit()
     db.refresh(pref)
 
+    # Dynamically expand database lookup taxonomy with user-confirmed roles and locations
+    try:
+        from backend.app.services.lookup_service import add_lookup_if_missing
+        if "target_roles" in update_dict and update_dict["target_roles"]:
+            for role in update_dict["target_roles"]:
+                if isinstance(role, str) and role.strip():
+                    add_lookup_if_missing(db, "role", role.strip())
+
+        if "target_countries" in update_dict and update_dict["target_countries"]:
+            for loc in update_dict["target_countries"]:
+                if isinstance(loc, str) and loc.strip():
+                    add_lookup_if_missing(db, "location", loc.strip())
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to auto-register role/location lookup: {e}")
+
     # Re-evaluate matches when candidate preferences change
     try:
         from backend.app.models.user_profile import UserProfile

@@ -12,14 +12,8 @@ import {
   CheckCircle2,
   ChevronRight,
 } from 'lucide-react';
-import {
-  IT_ROLES_MASTER,
-  LOCATIONS_MASTER,
-  DATE_FRESHNESS_OPTIONS,
-  WORK_MODES,
-} from '../../constants/masterData';
-
 export default function AgentSettingsTab({
+  metaOptions,
   prefForm,
   setPrefForm,
   handleSavePreferences,
@@ -144,7 +138,7 @@ export default function AgentSettingsTab({
               {newRoleInput.trim() ? `Matching Roles for "${newRoleInput}":` : 'Popular IT Roles (Click to add):'}
             </span>
             <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
-              {IT_ROLES_MASTER
+              {(metaOptions?.roles || [])
                 .filter((r) => {
                   const matchSearch = newRoleInput.trim()
                     ? r.toLowerCase().includes(newRoleInput.toLowerCase().trim())
@@ -186,7 +180,7 @@ export default function AgentSettingsTab({
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {['remote', 'hybrid', 'onsite'].map((mode) => (
+            {(metaOptions?.work_modes || ['remote', 'hybrid', 'onsite']).map((mode) => (
               <label
                 key={mode}
                 onClick={() => handleToggleWorkMode(mode)}
@@ -260,7 +254,7 @@ export default function AgentSettingsTab({
               {newLocationInput.trim() ? `Matching Locations for "${newLocationInput}":` : 'Popular IT & Kerala Locations (Click to add):'}
             </span>
             <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
-              {LOCATIONS_MASTER
+              {(metaOptions?.locations || [])
                 .filter((loc) => {
                   const matchSearch = newLocationInput.trim()
                     ? loc.toLowerCase().includes(newLocationInput.toLowerCase().trim())
@@ -296,7 +290,16 @@ export default function AgentSettingsTab({
             <span className="text-slate-400 text-[11px]">Filters out jobs posted earlier than selected threshold</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {DATE_FRESHNESS_OPTIONS.map((opt) => (
+            {(metaOptions?.date_freshness?.length
+              ? metaOptions.date_freshness
+              : [
+                  { days: 1, label: 'Today (Past 24 Hours)' },
+                  { days: 3, label: 'Past 3 Days' },
+                  { days: 7, label: 'Past 7 Days (Recommended)' },
+                  { days: 14, label: 'Past 14 Days' },
+                  { days: 30, label: 'Past 30 Days' },
+                ]
+            ).map((opt) => (
               <button
                 key={opt.days}
                 type="button"

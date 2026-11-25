@@ -15,9 +15,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { IT_SKILLS_MASTER } from '../../constants/masterData';
-
 export default function ProfileTab({
+  metaOptions,
   profileForm,
   setProfileForm,
   resumes,
@@ -398,7 +397,7 @@ export default function ProfileTab({
                   {newSkillInput.trim() ? `Matching Skills for "${newSkillInput}":` : 'Popular IT Skills (Click to add):'}
                 </span>
                 <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1">
-                  {IT_SKILLS_MASTER
+                  {(metaOptions?.skills || [])
                     .filter((skill) => {
                       const matchSearch = newSkillInput.trim()
                         ? skill.toLowerCase().includes(newSkillInput.toLowerCase().trim())

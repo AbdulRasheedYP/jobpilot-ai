@@ -20,6 +20,17 @@ def update_profile(db: Session, user: UserProfile, update_data: ProfileUpdate) -
     db.commit()
     db.refresh(user)
 
+    # Dynamically expand database lookup taxonomy with user-confirmed skills
+    if "skills" in update_dict and update_dict["skills"]:
+        try:
+            from backend.app.services.lookup_service import add_lookup_if_missing
+            for skill in update_dict["skills"]:
+                if isinstance(skill, str) and skill.strip():
+                    add_lookup_if_missing(db, "skill", skill.strip())
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to auto-register skill lookup: {e}")
+
     # Re-evaluate match scores for candidate jobs when profile details change
     try:
         from backend.app.services.matching_engine import batch_evaluate_jobs

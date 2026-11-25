@@ -67,6 +67,19 @@ async def lifespan(app: FastAPI):
                 is_enabled=True,
                 permits_auto_apply=True,
             ))
+        if not db.query(JobSource).filter(JobSource.code == "adzuna").first():
+            db.add(JobSource(
+                id=uuid.uuid4(),
+                name="Adzuna Jobs",
+                code="adzuna",
+                adapter_class="AdzunaAdapter",
+                is_enabled=False,
+                permits_auto_apply=False,
+            ))
+
+        from backend.app.services.lookup_service import seed_master_lookups_if_empty
+        seed_master_lookups_if_empty(db)
+
         db.commit()
     except Exception:
         db.rollback()

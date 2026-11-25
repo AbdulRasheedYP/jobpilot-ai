@@ -6,6 +6,7 @@ from backend.app.models.job import JobSource, Company, Job
 from backend.app.models.job_match import JobMatch
 from backend.app.models.application import Application, ApplicationAnswer
 from backend.app.models.agent_event import AgentRun, AgentEvent
+from backend.app.models.lookup import MasterLookup
 
 __all__ = [
     "Base",
@@ -22,4 +23,5 @@ __all__ = [
     "ApplicationAnswer",
     "AgentRun",
     "AgentEvent",
+    "MasterLookup",
 ]
