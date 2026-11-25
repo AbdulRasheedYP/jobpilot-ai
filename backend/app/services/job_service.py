@@ -213,12 +213,16 @@ def list_jobs(
     role: Optional[str] = None,
     query: Optional[str] = None,
     source_id: Optional[uuid.UUID] = None,
+    location: Optional[str] = None,
+    min_score: Optional[float] = None,
+    posted_within_days: Optional[int] = None,
     sort_by: str = "match_score",
 ) -> Tuple[List[Job], int, int]:
     """
     Retrieve jobs with pagination, filters, and matching-order ranking.
     If a candidate user is provided, computes any missing match scores and
     orders by highest matching score first.
+    Filters by location, min_score, and date freshness strictly in SQL.
     """
     if user:
         # Pre-evaluate unmatched jobs so scores are strictly up to date
@@ -244,6 +248,17 @@ def list_jobs(
 
         if role:
             q = q.filter(Job.title.ilike(f"%{role}%"))
+
+        if location:
+            q = q.filter(Job.location.ilike(f"%{location}%"))
+
+        if min_score is not None:
+            q = q.filter(JobMatch.overall_score >= min_score)
+
+        if posted_within_days is not None and posted_within_days > 0:
+            from datetime import datetime, timezone, timedelta
+            cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
+            q = q.filter(Job.posted_at >= cutoff)
 
         if query:
             search_filter = or_(
@@ -286,6 +301,14 @@ def list_jobs(
 
     if role:
         q = q.filter(Job.title.ilike(f"%{role}%"))
+
+    if location:
+        q = q.filter(Job.location.ilike(f"%{location}%"))
+
+    if posted_within_days is not None and posted_within_days > 0:
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
+        q = q.filter(Job.posted_at >= cutoff)
 
     if query:
         search_filter = or_(

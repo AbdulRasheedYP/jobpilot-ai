@@ -17,6 +17,9 @@ def get_jobs(
     is_remote: Optional[bool] = Query(None, description="Filter for remote jobs"),
     role: Optional[str] = Query(None, description="Filter by title role"),
     query: Optional[str] = Query(None, description="Text search across title, company, description"),
+    location: Optional[str] = Query(None, description="Filter by location keyword"),
+    min_score: Optional[float] = Query(None, description="Filter by minimum overall match score"),
+    posted_within_days: Optional[int] = Query(None, description="Filter by job posting freshness in days"),
     source_id: Optional[uuid.UUID] = Query(None, description="Filter by job source"),
     sort_by: str = Query("match_score", description="Sort order: 'match_score' or 'created_at'"),
     current_user: UserProfile = Depends(get_current_user),
@@ -32,6 +35,9 @@ def get_jobs(
         role=role,
         query=query,
         source_id=source_id,
+        location=location,
+        min_score=min_score,
+        posted_within_days=posted_within_days,
         sort_by=sort_by,
     )
     return JobListResponse(

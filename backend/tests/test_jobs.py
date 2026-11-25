@@ -70,3 +70,18 @@ async def test_sync_and_deduplicate_jobs(async_client: AsyncClient, auth_headers
     single_resp = await async_client.get(f"/api/v1/jobs/{job_id}", headers=auth_headers)
     assert single_resp.status_code == 200
     assert single_resp.json()["id"] == job_id
+
+    # 7. Filter by location
+    loc_resp = await async_client.get("/api/v1/jobs?location=Remote", headers=auth_headers)
+    assert loc_resp.status_code == 200
+    assert all("remote" in j["location"].lower() for j in loc_resp.json()["items"])
+
+    # 8. Filter by posted_within_days
+    fresh_resp = await async_client.get("/api/v1/jobs?posted_within_days=30", headers=auth_headers)
+    assert fresh_resp.status_code == 200
+    assert isinstance(fresh_resp.json()["items"], list)
+
+    # 9. Filter by min_score
+    score_resp = await async_client.get("/api/v1/jobs?min_score=50", headers=auth_headers)
+    assert score_resp.status_code == 200
+    assert all(j["match_score"] >= 50 for j in score_resp.json()["items"])
