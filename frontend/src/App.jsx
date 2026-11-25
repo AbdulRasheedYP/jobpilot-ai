@@ -158,6 +158,12 @@ export default function App() {
   const [modalTab, setModalTab] = useState('resume'); // 'resume' | 'answers'
   const [copied, setCopied] = useState(false);
 
+  // Live Agent Working Preview Modal State
+  const [showAgentModal, setShowAgentModal] = useState(false);
+  const [agentStep, setAgentStep] = useState(1); // 1 = Discovery, 2 = Decision Engine Matching, 3 = Completed
+  const [agentStepLogs, setAgentStepLogs] = useState([]);
+  const [agentDiscoveredMatches, setAgentDiscoveredMatches] = useState([]);
+
   // Real Data States (Zero Mock Data)
   const [kpis, setKpis] = useState({
     total_jobs: 0,
@@ -302,17 +308,7 @@ export default function App() {
     init();
   }, [token]);
 
-  // Periodic polling for Dashboard & Runs
-  useEffect(() => {
-    if (!token) return;
-    const interval = setInterval(() => {
-      fetchDashboard(true);
-      fetchRunsAndLogs();
-    }, 8000);
-    return () => clearInterval(interval);
-  }, [token]);
-
-  // Fetch data on tab change
+  // Fetch data on tab change (Zero automatic unprompted runs)
   useEffect(() => {
     if (!token) return;
     if (activeTab === 'overview') {
@@ -910,20 +906,42 @@ export default function App() {
       return;
     }
 
-    showToast('Starting Agent cycle (discovering & evaluating up to 10 jobs)...', 'info');
+    // Open Live Working Preview Modal
+    setShowAgentModal(true);
+    setIsRunning(true);
+    setAgentStep(1);
+    setAgentStepLogs([
+      `Agent cycle initiated strictly upon button click.`,
+      `Stage 1: Scanning enabled job sources for "${cleanRoles[0]}" in "${cleanLocations[0]}" (limit: 10 jobs)...`,
+    ]);
+
     try {
+      setTimeout(() => {
+        setAgentStep(2);
+        setAgentStepLogs((prev) => [
+          ...prev,
+          `Stage 2: Running 5-factor Decision Engine (Skills 35%, Roles 25%, Experience 20%, Locations 10%, Education 10%)...`,
+        ]);
+      }, 700);
+
       const res = await authFetch('/agent/run', {
         method: 'POST',
         body: JSON.stringify({ run_type: 'FULL_CYCLE' }),
       });
+
       if (res && res.ok) {
-        showToast('Autonomous cycle started! Discovered & scored up to 10 jobs.', 'success');
-        fetchDashboard();
-        fetchRunsAndLogs();
-        fetchJobs();
+        await Promise.all([fetchJobs(), fetchMatches(), fetchDashboard(), fetchRunsAndLogs()]);
+        setAgentStep(3);
+        setAgentStepLogs((prev) => [
+          ...prev,
+          `Stage 3: Decision Engine completed! Scored and ranked up to 10 jobs.`,
+          `All matching jobs equipped with direct employer career links.`,
+        ]);
+        showToast('Autonomous cycle finished! Evaluated & ranked jobs ready.', 'success');
       } else {
         const errData = await res?.json().catch(() => ({}));
         showToast(errData.detail || 'Failed to start agent cycle.', 'error');
+        setAgentStepLogs((prev) => [...prev, `Error: ${errData.detail || 'Execution failed'}`]);
         if (errData.detail && (errData.detail.includes('Target Roles') || errData.detail.includes('Target Search Locations') || errData.detail.includes('Profile'))) {
           setActiveTab('profile');
           setProfileSection('preferences');
@@ -931,6 +949,9 @@ export default function App() {
       }
     } catch (e) {
       showToast('Error triggering agent: ' + e.message, 'error');
+      setAgentStepLogs((prev) => [...prev, `Network error: ${e.message}`]);
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -2596,6 +2617,211 @@ export default function App() {
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>Submit Application Now</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* AGENT LIVE WORKING PREVIEW MODAL */}
+      {/* ============================================================== */}
+      {showAgentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-emerald-50/70 to-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Autonomous Agent Live Execution Preview
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                      agentStep < 3 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {agentStep < 3 ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin text-amber-700" />
+                          <span>Working...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-700" />
+                          <span>Finished</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    User-triggered execution cycle • Max 10 jobs processed
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAgentModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-white/80 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {/* Stepper Pipeline */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { step: 1, label: '1. Discovery', desc: 'Scan 10 Jobs' },
+                  { step: 2, label: '2. Decision Match', desc: 'Weighted Fit' },
+                  { step: 3, label: '3. Direct Apply', desc: 'Original Links' },
+                ].map((s) => {
+                  const isDone = agentStep > s.step || (agentStep === 3 && s.step === 3);
+                  const isCurrent = agentStep === s.step && agentStep !== 3;
+                  return (
+                    <div
+                      key={s.step}
+                      className={`p-3 rounded-2xl border text-center transition-all ${
+                        isDone
+                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                          : isCurrent
+                          ? 'bg-amber-50/80 border-amber-300 text-amber-900 ring-2 ring-amber-400/20'
+                          : 'bg-slate-50 border-slate-100 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5 text-xs font-bold mb-0.5">
+                        {isDone ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : isCurrent ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                        ) : (
+                          <div className="w-3.5 h-3.5 rounded-full border border-slate-300" />
+                        )}
+                        <span>{s.label}</span>
+                      </div>
+                      <span className="text-[10px] block opacity-80">{s.desc}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Live Status Log Terminal Box */}
+              <div className="bg-slate-900 rounded-2xl p-4 text-xs font-mono text-emerald-400 space-y-1.5 shadow-inner">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-slate-800">
+                  <span className="uppercase tracking-wider">Live Agent Execution Stream</span>
+                  <span className="text-emerald-500">● Interactive</span>
+                </div>
+                <div className="space-y-1 pt-1 max-h-32 overflow-y-auto">
+                  {agentStepLogs.map((log, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="text-slate-500">›</span>
+                      <span className="text-slate-200">{log}</span>
+                    </div>
+                  ))}
+                  {agentStep < 3 && (
+                    <div className="flex items-center gap-2 text-amber-400 animate-pulse pt-1">
+                      <span className="text-amber-500">›</span>
+                      <span>Processing next task...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Scored Jobs Working Preview */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    {agentStep === 3 ? 'Top Scored Jobs for Your Profile' : 'Evaluating Jobs in Feed...'}
+                  </h4>
+                  <span className="text-[11px] text-slate-500">Direct employer career links</span>
+                </div>
+
+                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                  {jobs && jobs.length > 0 ? (
+                    jobs.slice(0, 5).map((job) => {
+                      const match = matches.find((m) => m.job_id === job.id);
+                      const score = job.match_score || (match ? match.overall_score : null);
+
+                      return (
+                        <div
+                          key={job.id}
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-emerald-200 hover:shadow-xs transition-all flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-0.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-bold text-slate-900 truncate">{job.title}</h5>
+                              {job.is_remote && (
+                                <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200 shrink-0">
+                                  Remote
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 flex items-center gap-2 truncate">
+                              <span className="font-semibold text-slate-700">{job.company_name}</span>
+                              <span>•</span>
+                              <span>{job.location || 'Remote'}</span>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right">
+                              <span className="text-sm font-black text-emerald-600 block">
+                                {score ? `${Math.round(score)}%` : 'New'}
+                              </span>
+                              <span className="text-[10px] text-slate-400">Match Fit</span>
+                            </div>
+
+                            <a
+                              href={job.application_url || job.canonical_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg inline-flex items-center gap-1 shadow-2xs"
+                              title="Open original job posting"
+                            >
+                              <span>Apply ↗</span>
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-6 text-slate-400 text-xs">
+                      {agentStep < 3 ? 'Agent evaluating first batch of jobs...' : 'No jobs discovered.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">
+                {agentStep === 3
+                  ? 'All jobs scored and ordered by match fit.'
+                  : 'Cycle in progress. Starts only on button click.'}
+              </span>
+              <div className="flex items-center gap-2">
+                {agentStep === 3 ? (
+                  <button
+                    onClick={() => {
+                      setShowAgentModal(false);
+                      setActiveTab('jobs');
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <span>View All in Discovered Jobs Feed</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAgentModal(false)}
+                    className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl cursor-pointer"
+                  >
+                    Close Preview
                   </button>
                 )}
               </div>
