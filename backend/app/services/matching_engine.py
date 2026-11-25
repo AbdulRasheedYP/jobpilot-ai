@@ -281,6 +281,7 @@ def batch_evaluate_jobs(
         target_jobs = (
             db.query(Job)
             .filter(Job.is_active == True)
+            .order_by(Job.created_at.desc())
             .limit(limit)
             .all()
         )
@@ -293,6 +294,7 @@ def batch_evaluate_jobs(
         target_jobs = (
             db.query(Job)
             .filter(Job.is_active == True, ~Job.id.in_(evaluated_ids_stmt))
+            .order_by(Job.created_at.desc())
             .limit(limit)
             .all()
         )

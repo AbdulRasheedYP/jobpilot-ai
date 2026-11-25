@@ -141,7 +141,7 @@ async def execute_agent_cycle(
         # --- Stage 2: Matching & Decision Engine ---
         if run_type in ["MATCHING", "FULL_CYCLE"]:
             log_event(db, run.id, "MATCHING", "MATCHING_STARTED", "Evaluating match scores and eligibility for candidate profile...")
-            evaluated, eligible, strong = batch_evaluate_jobs(db=db, user=user, limit=max(cycle_limit * 2, 50), force_reevaluate=True)
+            evaluated, eligible, strong = batch_evaluate_jobs(db=db, user=user, limit=max(cycle_limit * 5, 200), force_reevaluate=True)
             run.jobs_matched = evaluated
             db.commit()
             log_event(
