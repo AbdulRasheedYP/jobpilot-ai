@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
 
     # CORS
-    ALLOWED_CORS_ORIGINS: List[str] = [
+    ALLOWED_CORS_ORIGINS: Union[str, List[str]] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./storage/uploads"
     RESUME_STORAGE_DIR: str = "./storage/resumes"
 
-    @field_validator("ALLOWED_CORS_ORIGINS", mode="before")
+    @field_validator("ALLOWED_CORS_ORIGINS", mode="after")
     @classmethod
     def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
