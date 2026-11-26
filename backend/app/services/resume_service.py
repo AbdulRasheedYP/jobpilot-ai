@@ -41,13 +41,15 @@ async def save_and_parse_resume(
             detail="The uploaded file is empty.",
         )
 
-    # Save to storage/uploads
-    _ensure_dir(settings.UPLOAD_DIR)
-    stored_filename = f"{uuid.uuid4().hex}_{file_name}"
-    file_path = os.path.join(settings.UPLOAD_DIR, stored_filename)
-
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # Save via unified storage service (local copy + Cloudinary if configured)
+    from backend.app.services.storage_service import storage_service
+    storage_result = storage_service.save_file(
+        content=content,
+        original_filename=file_name,
+        content_type=f"application/{ext}" if ext != "txt" else "text/plain",
+    )
+    file_path = storage_result["local_path"]
+    cloud_url = storage_result.get("cloud_url")
 
     # Extract text & parse facts
     text = extract_text_from_file(content, file_type=ext)
@@ -100,11 +102,15 @@ async def save_and_parse_resume(
     from backend.app.models.job_match import JobMatch
     db.query(JobMatch).filter(JobMatch.user_profile_id == user.id).delete()
 
+    if cloud_url:
+        parsed_facts["cloud_url"] = cloud_url
+        parsed_facts["storage_type"] = "cloudinary"
+
     # Create Resume DB record
     resume = Resume(
         id=uuid.uuid4(),
         user_profile_id=user.id,
-        file_path=file_path,
+        file_path=cloud_url or file_path,
         file_name=file_name,
         file_type=ext,
         is_original=True,

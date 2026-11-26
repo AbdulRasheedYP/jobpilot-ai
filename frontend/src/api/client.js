@@ -1,4 +1,8 @@
-export const API_BASE = '/api/v1';
+const RAW_API_URL = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
+  : '';
+export const API_BASE = RAW_API_URL ? `${RAW_API_URL}/api/v1` : '/api/v1';
+
 
 let authToken = localStorage.getItem('jobpilot_token') || '';
 

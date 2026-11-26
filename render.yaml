@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: jobpilot-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        sync: false # Set this to your Neon Postgres connection string in Render Dashboard
+      - key: GEMINI_API_KEY
+        sync: false # Set your Gemini API key in Render Dashboard
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_CORS_ORIGINS
+        value: "https://jobpilot.vercel.app,http://localhost:3000"
+      - key: STORAGE_BACKEND
+        value: "cloudinary"
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

@@ -37,8 +37,39 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2:3b"
 
     # Storage Settings
+    STORAGE_BACKEND: str = "local"  # 'local' | 'cloudinary'
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+    CLOUDINARY_FOLDER: str = "jobpilot/resumes"
     UPLOAD_DIR: str = "./storage/uploads"
     RESUME_STORAGE_DIR: str = "./storage/resumes"
+
+    @field_validator("ALLOWED_CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        if not v:
+            return v
+        url = v.strip()
+        # Handle Neon/Heroku/Render postgres:// prefix
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg://", 1)
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -49,3 +80,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

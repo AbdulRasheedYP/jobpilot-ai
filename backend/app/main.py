@@ -126,11 +126,15 @@ def is_trusted_origin(origin: Optional[str], request_host: Optional[str] = None)
 
         # 2. Check explicit allowed origins from settings
         for ao in settings.ALLOWED_CORS_ORIGINS:
+            if ao == "*":
+                return True
             ao_parsed = urlparse(ao)
             ao_host = (ao_parsed.hostname or "").lower()
             if ao_host == hostname:
                 if not ao_parsed.port or ao_parsed.port == parsed.port:
                     return True
+            if (ao_host == "vercel.app" or ao_host.endswith(".vercel.app")) and hostname.endswith(".vercel.app"):
+                return True
 
         # 3. Always allow localhost and loopback addresses on any port
         if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1", "testserver"):
