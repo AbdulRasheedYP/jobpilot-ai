@@ -173,7 +173,7 @@ def upgrade() -> None:
         sa.Column('job_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('jobs.id', ondelete='RESTRICT'), nullable=False),
         sa.Column('user_profile_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('user_profiles.id', ondelete='CASCADE'), nullable=False),
         sa.Column('tailored_resume_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('resumes.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('status', sa.Enum('NOT_STARTED', 'PREPARING', 'NEEDS_USER_INPUT', 'READY', 'AUTO_APPLY_QUEUED', 'SUBMITTING', 'APPLIED_CONFIRMED', 'SUBMISSION_UNCONFIRMED', 'MANUAL_ACTION_REQUIRED', 'FAILED_RETRYABLE', 'FAILED_FINAL', 'WITHDRAWN', name='application_status'), nullable=False, server_default='NOT_STARTED'),
+        sa.Column('status', application_status, nullable=False, server_default='NOT_STARTED'),
         sa.Column('submission_method', sa.String(50), nullable=True),
         sa.Column('submitted_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('confirmation_evidence', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -203,7 +203,7 @@ def upgrade() -> None:
         'agent_runs',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('user_profile_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('user_profiles.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('status', sa.Enum('RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED', name='agent_run_status'), nullable=False, server_default='RUNNING'),
+        sa.Column('status', agent_run_status, nullable=False, server_default='RUNNING'),
         sa.Column('jobs_discovered', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('jobs_matched', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('applications_prepared', sa.Integer(), nullable=False, server_default='0'),
@@ -224,10 +224,24 @@ def upgrade() -> None:
         sa.Column('payload', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
     )
-    op.create_index('idx_agent_events_run', 'agent_events', ['agent_run_id', 'timestamp'])
+    # 13. master_lookups
+    op.create_table(
+        'master_lookups',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('category', sa.String(50), nullable=False),
+        sa.Column('value', sa.String(100), nullable=False),
+        sa.Column('label', sa.String(150), nullable=True),
+        sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
+    )
+    op.create_index('ix_master_lookups_category', 'master_lookups', ['category'])
+    op.create_index('ix_master_lookups_value', 'master_lookups', ['value'])
 
 
 def downgrade() -> None:
+    op.drop_table('master_lookups')
     op.drop_table('agent_events')
     op.drop_table('agent_runs')
     op.drop_table('application_answers')

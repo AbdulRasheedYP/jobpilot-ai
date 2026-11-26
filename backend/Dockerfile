@@ -15,7 +15,7 @@ COPY backend/requirements.txt /app/backend/
 RUN pip install --no-cache-dir -r /app/backend/requirements.txt && playwright install --with-deps chromium
 
 COPY backend/ /app/backend/
-COPY storage/ /app/storage/
+RUN mkdir -p /app/storage/uploads /app/storage/resumes
 
 EXPOSE 8000
 
