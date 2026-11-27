@@ -118,10 +118,10 @@ export default function ProfileTab({
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm space-y-1">
             {[
               { id: 'cv_sync', label: 'CV File & Sync', icon: FileCheck, badge: selectedResume ? 'Active' : 'Empty' },
-              { id: 'personal', label: 'Personal Details', icon: UserCheck, badge: profileForm.full_name ? 'Filled' : 'Required' },
-              { id: 'skills', label: 'Technical Skills', icon: Zap, badge: `${profileForm.skills.length}` },
-              { id: 'experience', label: 'Work Experience', icon: Briefcase, badge: `${profileForm.experience.length}` },
-              { id: 'education', label: 'Education Credentials', icon: GraduationCap, badge: `${profileForm.education.length}` },
+              { id: 'personal', label: 'Personal Details', icon: UserCheck, badge: profileForm?.full_name ? 'Filled' : 'Required' },
+              { id: 'skills', label: 'Technical Skills', icon: Zap, badge: `${(profileForm?.skills || []).length}` },
+              { id: 'experience', label: 'Work Experience', icon: Briefcase, badge: `${(profileForm?.experience || []).length}` },
+              { id: 'education', label: 'Education Credentials', icon: GraduationCap, badge: `${(profileForm?.education || []).length}` },
             ].map((item) => {
               const Icon = item.icon;
               const isSelected = profileSection === item.id;
@@ -207,11 +207,11 @@ export default function ProfileTab({
               </div>
 
               {/* Resumes History Table */}
-              {resumes.length > 0 && (
+              {(Array.isArray(resumes) ? resumes : []).length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Uploaded Documents ({resumes.length})</h4>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Uploaded Documents ({(Array.isArray(resumes) ? resumes : []).length})</h4>
                   <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                    {resumes.map((r) => (
+                    {(Array.isArray(resumes) ? resumes : []).map((r) => (
                       <div key={r.id} className="p-3.5 bg-white hover:bg-slate-50 flex items-center justify-between text-xs">
                         <div className="space-y-0.5">
                           <div className="font-bold text-slate-800 flex items-center gap-2">
@@ -337,7 +337,7 @@ export default function ProfileTab({
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Zap className="w-5 h-5 text-emerald-600" />
-                    <span>Confirmed Technical Skills ({profileForm.skills.length})</span>
+                    <span>Confirmed Technical Skills ({(profileForm?.skills || []).length})</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                     Skills account for 35% of the match scoring weight.
@@ -347,23 +347,26 @@ export default function ProfileTab({
 
               {/* Skills Tag Cloud */}
               <div className="flex flex-wrap gap-2 min-h-[50px] p-3 bg-slate-50 rounded-xl border border-slate-200">
-                {profileForm.skills.length > 0 ? (
-                  profileForm.skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkill(skill)}
-                        className="text-emerald-500 hover:text-rose-600 cursor-pointer"
-                        title="Remove skill"
+                {(profileForm?.skills || []).length > 0 ? (
+                  (profileForm.skills || []).map((rawSkill, sIdx) => {
+                    const skill = typeof rawSkill === 'string' ? rawSkill : rawSkill?.name || rawSkill?.skill || String(rawSkill || '');
+                    return (
+                      <span
+                        key={`${skill}-${sIdx}`}
+                        className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
                       >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))
+                        <span>{skill}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSkill(skill)}
+                          className="text-emerald-500 hover:text-rose-600 cursor-pointer"
+                          title="Remove skill"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })
                 ) : (
                   <span className="text-slate-400 text-xs italic">
                     No skills listed yet. Add skills below or upload your CV to auto-extract.
@@ -401,9 +404,12 @@ export default function ProfileTab({
                   {(metaOptions?.skills || [])
                     .filter((skill) => {
                       const matchSearch = newSkillInput.trim()
-                        ? skill.toLowerCase().includes(newSkillInput.toLowerCase().trim())
+                        ? String(skill).toLowerCase().includes(newSkillInput.toLowerCase().trim())
                         : true;
-                      const notAdded = !profileForm.skills.some((s) => s.toLowerCase() === skill.toLowerCase());
+                      const notAdded = !(profileForm?.skills || []).some((s) => {
+                        const sStr = typeof s === 'string' ? s : s?.name || s?.skill || String(s || '');
+                        return sStr.toLowerCase() === String(skill).toLowerCase();
+                      });
                       return matchSearch && notAdded;
                     })
                     .slice(0, newSkillInput.trim() ? 20 : 12)
@@ -430,7 +436,7 @@ export default function ProfileTab({
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-emerald-600" />
-                    <span>Work Experience ({profileForm.experience.length})</span>
+                    <span>Work Experience ({(profileForm?.experience || []).length})</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                     Experience fit contributes 20% to matching scores.
@@ -453,36 +459,36 @@ export default function ProfileTab({
                     <input
                       type="text"
                       placeholder="Company name"
-                      value={newExp.company}
-                      onChange={(e) => setNewExp({ ...newExp, company: e.target.value })}
+                      value={newExp?.company || ''}
+                      onChange={(e) => setNewExp({ ...(newExp || {}), company: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                     <input
                       type="text"
                       placeholder="Role title"
-                      value={newExp.title}
-                      onChange={(e) => setNewExp({ ...newExp, title: e.target.value })}
+                      value={newExp?.title || ''}
+                      onChange={(e) => setNewExp({ ...(newExp || {}), title: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                     <input
                       type="text"
                       placeholder="Start Date (e.g. 2023-01)"
-                      value={newExp.start_date}
-                      onChange={(e) => setNewExp({ ...newExp, start_date: e.target.value })}
+                      value={newExp?.start_date || ''}
+                      onChange={(e) => setNewExp({ ...(newExp || {}), start_date: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                     <input
                       type="text"
                       placeholder="End Date (e.g. Present)"
-                      value={newExp.end_date}
-                      onChange={(e) => setNewExp({ ...newExp, end_date: e.target.value })}
+                      value={newExp?.end_date || ''}
+                      onChange={(e) => setNewExp({ ...(newExp || {}), end_date: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                   </div>
                   <textarea
                     placeholder="Key responsibilities and technical accomplishments..."
-                    value={newExp.description}
-                    onChange={(e) => setNewExp({ ...newExp, description: e.target.value })}
+                    value={newExp?.description || ''}
+                    onChange={(e) => setNewExp({ ...(newExp || {}), description: e.target.value })}
                     rows={2}
                     className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                   />
@@ -497,35 +503,58 @@ export default function ProfileTab({
 
               {/* Experience List */}
               <div className="space-y-3">
-                {profileForm.experience.length > 0 ? (
-                  profileForm.experience.map((exp, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all flex items-start justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 text-sm">{exp.title || 'Role'}</span>
-                          <span className="text-slate-400">•</span>
-                          <span className="text-emerald-700 font-semibold">{exp.company || 'Company'}</span>
-                        </div>
-                        <span className="text-slate-400 text-[11px] block">
-                          {exp.start_date || 'Past'} – {exp.end_date || 'Present'}
-                        </span>
-                        {exp.description && (
-                          <p className="text-slate-600 text-[11px] mt-1 line-clamp-2">{exp.description}</p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExperience(idx)}
-                        className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
-                        title="Remove role"
+                {(profileForm?.experience || []).length > 0 ? (
+                  (profileForm.experience || []).map((rawExp, idx) => {
+                    const isStr = typeof rawExp === 'string';
+                    const title = isStr ? rawExp : (typeof rawExp?.title === 'string' ? rawExp.title : (rawExp?.title?.name || 'Role'));
+                    const company = isStr ? '' : (typeof rawExp?.company === 'string' ? rawExp.company : (rawExp?.company?.name || 'Company'));
+                    const startDate = isStr ? '' : (typeof rawExp?.start_date === 'string' ? rawExp.start_date : (rawExp?.start_date ? String(rawExp.start_date) : 'Past'));
+                    const endDate = isStr ? '' : (typeof rawExp?.end_date === 'string' ? rawExp.end_date : (rawExp?.end_date ? String(rawExp.end_date) : 'Present'));
+                    const description = isStr
+                      ? ''
+                      : rawExp?.description
+                        ? Array.isArray(rawExp.description)
+                          ? rawExp.description.map(d => typeof d === 'string' ? d : JSON.stringify(d)).join('\n')
+                          : typeof rawExp.description === 'object'
+                            ? JSON.stringify(rawExp.description)
+                            : String(rawExp.description)
+                        : '';
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all flex items-start justify-between gap-3 text-xs"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{title}</span>
+                            {company && (
+                              <>
+                                <span className="text-slate-400">•</span>
+                                <span className="text-emerald-700 font-semibold">{company}</span>
+                              </>
+                            )}
+                          </div>
+                          {(startDate || endDate) && (
+                            <span className="text-slate-400 text-[11px] block">
+                              {startDate} – {endDate}
+                            </span>
+                          )}
+                          {description && (
+                            <p className="text-slate-600 text-[11px] mt-1 line-clamp-2">{description}</p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExperience(idx)}
+                          className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
+                          title="Remove role"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
                     No experience recorded. Click "Add Experience" above or upload a CV.
@@ -542,7 +571,7 @@ export default function ProfileTab({
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <GraduationCap className="w-5 h-5 text-emerald-600" />
-                    <span>Education Credentials ({profileForm.education.length})</span>
+                    <span>Education Credentials ({(profileForm?.education || []).length})</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                     Education credentials contribute 10% to matching scores.
@@ -565,22 +594,22 @@ export default function ProfileTab({
                     <input
                       type="text"
                       placeholder="Institution / University"
-                      value={newEdu.institution}
-                      onChange={(e) => setNewEdu({ ...newEdu, institution: e.target.value })}
+                      value={newEdu?.institution || ''}
+                      onChange={(e) => setNewEdu({ ...(newEdu || {}), institution: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                     <input
                       type="text"
                       placeholder="Degree (e.g. B.Tech CS)"
-                      value={newEdu.degree}
-                      onChange={(e) => setNewEdu({ ...newEdu, degree: e.target.value })}
+                      value={newEdu?.degree || ''}
+                      onChange={(e) => setNewEdu({ ...(newEdu || {}), degree: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                     <input
                       type="number"
                       placeholder="Graduation Year (e.g. 2024)"
-                      value={newEdu.graduation_year}
-                      onChange={(e) => setNewEdu({ ...newEdu, graduation_year: e.target.value })}
+                      value={newEdu?.graduation_year || ''}
+                      onChange={(e) => setNewEdu({ ...(newEdu || {}), graduation_year: e.target.value })}
                       className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
                   </div>
@@ -595,29 +624,36 @@ export default function ProfileTab({
 
               {/* Education List */}
               <div className="space-y-3">
-                {profileForm.education.length > 0 ? (
-                  profileForm.education.map((edu, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all flex items-start justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-slate-900 text-sm block">{edu.degree || 'Degree'}</span>
-                        <span className="text-slate-600">{edu.institution || 'University'}</span>
-                        {edu.graduation_year && (
-                          <span className="text-slate-400 text-[11px] block">Graduation: {edu.graduation_year}</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveEducation(idx)}
-                        className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
-                        title="Remove education"
+                {(profileForm?.education || []).length > 0 ? (
+                  (profileForm.education || []).map((rawEdu, idx) => {
+                    const isStr = typeof rawEdu === 'string';
+                    const degree = isStr ? rawEdu : (typeof rawEdu?.degree === 'string' ? rawEdu.degree : (rawEdu?.degree?.name || 'Degree'));
+                    const institution = isStr ? '' : (typeof rawEdu?.institution === 'string' ? rawEdu.institution : (rawEdu?.institution?.name || ''));
+                    const graduationYear = isStr ? null : (rawEdu?.graduation_year ? String(rawEdu.graduation_year) : null);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all flex items-start justify-between gap-3 text-xs"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-900 text-sm block">{degree}</span>
+                          {institution && <span className="text-slate-600">{institution}</span>}
+                          {graduationYear && (
+                            <span className="text-slate-400 text-[11px] block">Graduation: {graduationYear}</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEducation(idx)}
+                          className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
+                          title="Remove education"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
                     No education recorded. Click "Add Education" above or upload a CV.

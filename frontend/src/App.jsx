@@ -265,19 +265,21 @@ export default function App() {
       if (res && res.ok) {
         const data = await res.json();
         setProfile(data);
-        if (data.email) {
+        if (data && data.email) {
           localStorage.setItem('jobpilot_email', data.email);
         }
         setProfileForm({
-          full_name: data.full_name || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          current_location: data.current_location || '',
-          skills: data.skills || [],
-          experience: data.experience || [],
-          education: data.education || [],
-          notice_period_days: data.notice_period_days || 0,
-          sponsorship_required: data.sponsorship_required || false,
+          full_name: typeof data?.full_name === 'string' ? data.full_name : '',
+          email: typeof data?.email === 'string' ? data.email : '',
+          phone: typeof data?.phone === 'string' ? data.phone : '',
+          current_location: typeof data?.current_location === 'string' ? data.current_location : '',
+          skills: Array.isArray(data?.skills)
+            ? data.skills.map((s) => (typeof s === 'string' ? s : s?.name || s?.skill || String(s || ''))).filter(Boolean)
+            : [],
+          experience: Array.isArray(data?.experience) ? data.experience : [],
+          education: Array.isArray(data?.education) ? data.education : [],
+          notice_period_days: data?.notice_period_days || 0,
+          sponsorship_required: Boolean(data?.sponsorship_required),
         });
       }
     } catch (e) {
@@ -292,14 +294,14 @@ export default function App() {
         const data = await res.json();
         setPreferences(data);
         setPrefForm({
-          target_roles: data.target_roles || [],
-          target_countries: data.target_countries || [],
-          work_modes: data.work_modes || [],
-          min_match_score: data.min_match_score != null ? data.min_match_score : 70,
-          posted_within_days: data.posted_within_days != null ? data.posted_within_days : null,
-          min_salary: data.min_salary != null ? data.min_salary : '',
-          max_salary: data.max_salary != null ? data.max_salary : '',
-          currency: data.currency || 'INR',
+          target_roles: Array.isArray(data?.target_roles) ? data.target_roles : [],
+          target_countries: Array.isArray(data?.target_countries) ? data.target_countries : [],
+          work_modes: Array.isArray(data?.work_modes) ? data.work_modes : [],
+          min_match_score: data?.min_match_score != null ? data.min_match_score : 70,
+          posted_within_days: data?.posted_within_days != null ? data.posted_within_days : null,
+          min_salary: data?.min_salary != null ? data.min_salary : '',
+          max_salary: data?.max_salary != null ? data.max_salary : '',
+          currency: data?.currency || 'INR',
         });
       }
     } catch (e) {
@@ -312,9 +314,10 @@ export default function App() {
       const res = await authFetch('/resumes');
       if (res && res.ok) {
         const data = await res.json();
-        setResumes(data);
-        if (data && data.length > 0) {
-          setSelectedResume(data[0]);
+        const list = Array.isArray(data) ? data : [];
+        setResumes(list);
+        if (list.length > 0) {
+          setSelectedResume(list[0]);
         }
       }
     } catch (e) {
@@ -341,12 +344,14 @@ export default function App() {
       if (res && res.ok) {
         const data = await res.json();
         showToast('CV parsed! Profile draft auto-filled. Configure your search settings and start the Agent Cycle to discover matching jobs.', 'success');
-        setSelectedResume(data);
+        if (data && typeof data === 'object' && data.id) {
+          setSelectedResume(data);
+        }
         // Only refresh profile-related data — job scoring happens only on Agent Cycle
         await Promise.all([fetchResumes(), fetchProfile(), fetchPreferences()]);
       } else {
         const err = await res?.json().catch(() => ({}));
-        showToast(err.detail || 'Failed to parse CV.', 'error');
+        showToast(err?.detail || 'Failed to parse CV.', 'error');
       }
     } catch (err) {
       showToast('Error uploading CV: ' + err.message, 'error');
