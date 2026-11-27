@@ -17,7 +17,8 @@ def login(
 ):
     """Authenticate single-user and issue a signed JWT access token."""
     user = db.query(UserProfile).filter(UserProfile.email == login_data.email).first()
-    if not user and (settings.DEBUG or settings.APP_ENV in ("development", "test")):
+    if not user:
+        # Personal Agent single-user fallback: authenticate the sole candidate profile
         user = db.query(UserProfile).first()
 
     if not user or not verify_password(login_data.password, user.hashed_password):

@@ -4,6 +4,18 @@ import { Activity } from 'lucide-react';
 export default function Toast({ toast }) {
   if (!toast?.message) return null;
 
+  const renderMessage = () => {
+    const msg = toast.message;
+    if (typeof msg === 'string') return msg;
+    if (typeof msg === 'object' && msg !== null) {
+      if (typeof msg.message === 'string') return msg.message;
+      if (msg.error && typeof msg.error.message === 'string') return msg.error.message;
+      if (typeof msg.detail === 'string') return msg.detail;
+      return JSON.stringify(msg);
+    }
+    return String(msg);
+  };
+
   return (
     <div
       className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border transition-all duration-300 ${
@@ -17,7 +29,7 @@ export default function Toast({ toast }) {
       }`}
     >
       <Activity className="w-5 h-5 animate-pulse text-emerald-400" />
-      <span className="text-sm font-medium">{toast.message}</span>
+      <span className="text-sm font-medium">{renderMessage()}</span>
     </div>
   );
 }

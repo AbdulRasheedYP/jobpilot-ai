@@ -98,8 +98,16 @@ export default function App() {
     ],
   });
 
-  const showToast = (message, type = 'info') => {
-    setToast({ message, type });
+  const showToast = (rawMessage, type = 'info') => {
+    let message = rawMessage;
+    if (typeof rawMessage === 'object' && rawMessage !== null) {
+      if (typeof rawMessage.message === 'string') message = rawMessage.message;
+      else if (rawMessage.error && typeof rawMessage.error.message === 'string') message = rawMessage.error.message;
+      else if (typeof rawMessage.detail === 'string') message = rawMessage.detail;
+      else if (rawMessage.detail && typeof rawMessage.detail.error?.message === 'string') message = rawMessage.detail.error.message;
+      else message = JSON.stringify(rawMessage);
+    }
+    setToast({ message: String(message || ''), type });
     setTimeout(() => setToast({ message: '', type: '' }), 4000);
   };
 
